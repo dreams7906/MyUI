@@ -57,6 +57,7 @@ local Library = {
 	FontName = "Gotham",
 	Scale = 1,
 	Animations = true,
+	Textures = true,
 	MenuKey = "RightShift",
 	NotifySide = "Right",
 	HideIdentity = false,
@@ -342,32 +343,81 @@ local BaseTheme = {
 	Transparency = 0,
 }
 
+-- Presets only list the keys they change; everything else falls back to Nerv.
+local function Palette(bg, panel, element, hover, border, text, sub, dim)
+	return {
+		Background = bg, Panel = panel, Element = element, Hover = hover, Border = border,
+		Text = text, SubText = sub, DimText = dim,
+	}
+end
+
+local function Preset(name, accent, glow, dark, palette, onAccent)
+	local preset = palette and table.clone(palette) or {}
+	preset.Name, preset.Accent, preset.AccentGlow, preset.AccentDark = name, accent, glow, dark
+	preset.OnAccent = onAccent
+	return preset
+end
+
 local ThemePresets = {
-	{ Name = "Nerv" },
-	{ Name = "Crimson", Accent = rgb(222, 62, 78), AccentGlow = rgb(246, 114, 124), AccentDark = rgb(148, 30, 46) },
-	{ Name = "Emerald", Accent = rgb(38, 176, 112), AccentGlow = rgb(92, 220, 156), AccentDark = rgb(22, 112, 72) },
-	{ Name = "Amethyst", Accent = rgb(138, 92, 232), AccentGlow = rgb(180, 142, 250), AccentDark = rgb(88, 54, 168) },
-	{
-		Name = "Amber", Accent = rgb(232, 152, 42), AccentGlow = rgb(250, 194, 96),
-		AccentDark = rgb(164, 98, 18), OnAccent = rgb(24, 18, 10),
-	},
-	{ Name = "Sakura", Accent = rgb(236, 92, 152), AccentGlow = rgb(250, 146, 192), AccentDark = rgb(164, 50, 102) },
-	{ Name = "Glacier", Accent = rgb(44, 186, 214), AccentGlow = rgb(110, 226, 242), AccentDark = rgb(22, 118, 142) },
-	{
-		Name = "Midnight", Accent = rgb(96, 108, 246), AccentGlow = rgb(146, 154, 255), AccentDark = rgb(60, 66, 176),
-		Background = rgb(10, 11, 20), Panel = rgb(15, 17, 30), Element = rgb(22, 25, 42),
-		Hover = rgb(30, 34, 56), Border = rgb(34, 39, 64),
-	},
-	{
-		Name = "Mono", Accent = rgb(210, 212, 218), AccentGlow = rgb(250, 250, 252),
-		AccentDark = rgb(128, 130, 138), OnAccent = rgb(14, 16, 20),
-	},
-	{
-		Name = "Daylight", Accent = rgb(52, 112, 224), AccentGlow = rgb(98, 150, 240), AccentDark = rgb(32, 82, 180),
-		Background = rgb(236, 239, 244), Panel = rgb(250, 251, 253), Element = rgb(230, 233, 239),
-		Hover = rgb(218, 223, 231), Border = rgb(206, 211, 221), Text = rgb(22, 24, 30),
-		SubText = rgb(84, 90, 102), DimText = rgb(136, 142, 154),
-	},
+	-- Accent variations on the original dark base
+	Preset("Nerv", BaseTheme.Accent, BaseTheme.AccentGlow, BaseTheme.AccentDark),
+	Preset("Crimson", rgb(222, 62, 78), rgb(246, 114, 124), rgb(148, 30, 46)),
+	Preset("Emerald", rgb(38, 176, 112), rgb(92, 220, 156), rgb(22, 112, 72)),
+	Preset("Amethyst", rgb(138, 92, 232), rgb(180, 142, 250), rgb(88, 54, 168)),
+	Preset("Amber", rgb(232, 152, 42), rgb(250, 194, 96), rgb(164, 98, 18), nil, rgb(24, 18, 10)),
+	Preset("Sakura", rgb(236, 92, 152), rgb(250, 146, 192), rgb(164, 50, 102)),
+	Preset("Glacier", rgb(44, 186, 214), rgb(110, 226, 242), rgb(22, 118, 142)),
+	Preset("Mono", rgb(210, 212, 218), rgb(250, 250, 252), rgb(128, 130, 138), nil, rgb(14, 16, 20)),
+
+	-- Full palettes
+	Preset("Midnight", rgb(96, 108, 246), rgb(146, 154, 255), rgb(60, 66, 176),
+		Palette(rgb(10, 11, 20), rgb(15, 17, 30), rgb(22, 25, 42), rgb(30, 34, 56), rgb(34, 39, 64),
+			rgb(228, 230, 245), rgb(150, 156, 190), rgb(96, 102, 138))),
+	Preset("Ocean", rgb(0, 168, 204), rgb(72, 220, 240), rgb(0, 100, 138),
+		Palette(rgb(7, 17, 25), rgb(10, 24, 34), rgb(15, 33, 46), rgb(21, 44, 60), rgb(25, 51, 69),
+			rgb(224, 240, 246), rgb(142, 178, 194), rgb(88, 122, 140))),
+	Preset("Sunset", rgb(255, 112, 67), rgb(255, 84, 150), rgb(186, 56, 42),
+		Palette(rgb(20, 12, 17), rgb(27, 17, 23), rgb(37, 23, 31), rgb(48, 30, 40), rgb(58, 35, 47),
+			rgb(248, 232, 236), rgb(196, 160, 170), rgb(134, 104, 114))),
+	Preset("Aurora", rgb(46, 204, 160), rgb(128, 140, 255), rgb(18, 128, 108),
+		Palette(rgb(8, 15, 19), rgb(12, 21, 26), rgb(17, 29, 35), rgb(23, 39, 46), rgb(28, 47, 55),
+			rgb(226, 242, 240), rgb(144, 180, 176), rgb(90, 122, 120))),
+	Preset("Blood Moon", rgb(204, 32, 48), rgb(255, 104, 84), rgb(118, 12, 24),
+		Palette(rgb(13, 7, 8), rgb(20, 11, 12), rgb(29, 15, 17), rgb(40, 20, 23), rgb(52, 25, 28),
+			rgb(245, 226, 226), rgb(184, 146, 146), rgb(124, 92, 92))),
+	Preset("Neon", rgb(255, 0, 170), rgb(0, 229, 255), rgb(150, 0, 110),
+		Palette(rgb(9, 7, 17), rgb(15, 11, 27), rgb(23, 17, 39), rgb(32, 24, 53), rgb(43, 31, 68),
+			rgb(240, 232, 255), rgb(170, 156, 204), rgb(110, 98, 146))),
+	Preset("Cyberpunk", rgb(252, 230, 10), rgb(0, 240, 255), rgb(196, 150, 0),
+		Palette(rgb(11, 11, 15), rgb(17, 17, 23), rgb(25, 25, 33), rgb(34, 34, 45), rgb(45, 45, 58),
+			rgb(240, 240, 232), rgb(170, 170, 160), rgb(110, 110, 104)), rgb(14, 14, 18)),
+	Preset("Royal Gold", rgb(212, 175, 55), rgb(255, 222, 122), rgb(140, 104, 20),
+		Palette(rgb(12, 11, 9), rgb(19, 17, 13), rgb(27, 24, 18), rgb(36, 32, 23), rgb(48, 42, 29),
+			rgb(242, 234, 216), rgb(182, 170, 142), rgb(122, 112, 90)), rgb(22, 17, 6)),
+	Preset("Nord", rgb(136, 192, 208), rgb(163, 214, 228), rgb(94, 129, 172),
+		Palette(rgb(41, 46, 57), rgb(46, 52, 64), rgb(59, 66, 82), rgb(67, 76, 94), rgb(76, 86, 106),
+			rgb(236, 239, 244), rgb(190, 198, 214), rgb(132, 142, 162)), rgb(36, 41, 51)),
+	Preset("Dracula", rgb(189, 147, 249), rgb(255, 121, 198), rgb(128, 88, 196),
+		Palette(rgb(30, 31, 41), rgb(40, 42, 54), rgb(52, 55, 70), rgb(62, 65, 84), rgb(68, 71, 90),
+			rgb(248, 248, 242), rgb(190, 192, 210), rgb(114, 128, 176))),
+	Preset("Mocha", rgb(203, 166, 247), rgb(245, 194, 231), rgb(137, 100, 200),
+		Palette(rgb(17, 17, 27), rgb(24, 24, 37), rgb(30, 30, 46), rgb(49, 50, 68), rgb(69, 71, 90),
+			rgb(205, 214, 244), rgb(166, 173, 200), rgb(127, 132, 156)), rgb(30, 30, 46)),
+	Preset("Tokyo Night", rgb(122, 162, 247), rgb(187, 154, 247), rgb(61, 89, 161),
+		Palette(rgb(22, 22, 30), rgb(26, 27, 38), rgb(36, 40, 59), rgb(41, 46, 66), rgb(52, 59, 88),
+			rgb(192, 202, 245), rgb(169, 177, 214), rgb(96, 104, 146))),
+	Preset("Gruvbox", rgb(254, 128, 25), rgb(250, 189, 47), rgb(175, 58, 3),
+		Palette(rgb(29, 32, 33), rgb(40, 40, 40), rgb(50, 48, 47), rgb(60, 56, 54), rgb(80, 73, 69),
+			rgb(235, 219, 178), rgb(189, 174, 147), rgb(146, 131, 116)), rgb(40, 40, 40)),
+	Preset("Rose Pine", rgb(235, 188, 186), rgb(196, 167, 231), rgb(180, 99, 122),
+		Palette(rgb(25, 23, 36), rgb(31, 29, 46), rgb(38, 35, 58), rgb(42, 39, 63), rgb(57, 53, 82),
+			rgb(224, 222, 244), rgb(160, 156, 186), rgb(110, 106, 134)), rgb(25, 23, 36)),
+	Preset("Daylight", rgb(52, 112, 224), rgb(98, 150, 240), rgb(32, 82, 180),
+		Palette(rgb(236, 239, 244), rgb(250, 251, 253), rgb(230, 233, 239), rgb(218, 223, 231), rgb(206, 211, 221),
+			rgb(22, 24, 30), rgb(84, 90, 102), rgb(136, 142, 154))),
+	Preset("Frost", rgb(56, 132, 255), rgb(110, 200, 255), rgb(30, 90, 200),
+		Palette(rgb(228, 238, 248), rgb(244, 249, 254), rgb(221, 231, 242), rgb(208, 221, 236), rgb(192, 208, 226),
+			rgb(16, 28, 46), rgb(68, 86, 110), rgb(124, 142, 166))),
 }
 
 local function PresetColors(name)
@@ -388,11 +438,41 @@ for key, value in BaseTheme do
 end
 
 -- instance -> { [property] = themeKey | function(theme) }
-local Registry = setmetatable({}, { __mode = "k" })
+-- These are strong tables on purpose: Roblox can garbage-collect the Lua
+-- wrapper of a live Instance, which silently empties weak-keyed tables.
+-- Destroyed instances are swept out instead (see SweepRegistries).
+local Registry = {}
 -- text instance -> font weight name
-local FontRegistry = setmetatable({}, { __mode = "k" })
+local FontRegistry = {}
 -- functions re-run after the theme changes (stateful elements repaint themselves)
 local ThemeListeners = {}
+
+local sweepQueued, registrations = false, 0
+
+-- Drops entries for destroyed instances. Deferred so it never runs while an
+-- instance is still being built (and therefore has no Parent yet).
+local function SweepRegistries()
+	sweepQueued = false
+	for instance in Registry do
+		if instance.Parent == nil then
+			Registry[instance] = nil
+		end
+	end
+	for instance in FontRegistry do
+		if instance.Parent == nil then
+			FontRegistry[instance] = nil
+		end
+	end
+end
+
+local function Registered()
+	registrations += 1
+	if registrations >= 400 and not sweepQueued then
+		registrations = 0
+		sweepQueued = true
+		task.defer(SweepRegistries)
+	end
+end
 
 local function Resolve(value)
 	if type(value) == "function" then
@@ -406,6 +486,7 @@ local function Bind(instance, map)
 	if not entry then
 		entry = {}
 		Registry[instance] = entry
+		Registered()
 	end
 	for property, key in map do
 		entry[property] = key
@@ -485,6 +566,9 @@ local function GetFont(weight)
 end
 
 local function SetWeight(instance, weight)
+	if not FontRegistry[instance] then
+		Registered()
+	end
 	FontRegistry[instance] = weight
 	instance.FontFace = GetFont(weight)
 end
@@ -497,6 +581,7 @@ local TextClasses = { TextLabel = true, TextButton = true, TextBox = true }
 
 local ClassDefaults = {
 	Frame = { BorderSizePixel = 0 },
+	CanvasGroup = { BorderSizePixel = 0 },
 	ScrollingFrame = {
 		BorderSizePixel = 0,
 		BackgroundTransparency = 1,
@@ -966,6 +1051,71 @@ end
 Library.Icons = Icons
 
 --------------------------------------------------------------------------------
+-- Procedural "caustic" texture (brand card, section headers, loading card)
+--------------------------------------------------------------------------------
+
+local Textures = {}
+
+-- Small deterministic PRNG so each surface gets a stable, unique pattern.
+local function Random(seed)
+	local state = math.floor(seed) % 2147483646 + 1
+	return function()
+		state = state * 16807 % 2147483647
+		return state / 2147483647
+	end
+end
+
+-- Faint overlapping ellipse outlines read as water caustics over the accent
+-- gradient. A CanvasGroup clips them to the parent's rounded corners.
+local function AddTexture(parent, seed, count, corner, size)
+	size = size or 1
+	local canvas = Create("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = Library.Textures,
+		Corner = corner,
+		Parent = parent,
+	})
+	local random = Random(seed)
+	for _ = 1, count do
+		local width = (16 + random() * 42) * size
+		local blob = Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(random() * 1.1 - 0.05, random() * 1.2 - 0.1),
+			Size = UDim2.fromOffset(width, width * (0.3 + random() * 0.45)),
+			Rotation = random() * 50 - 25,
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = random() < 0.35 and 0.94 or 1,
+			Corner = UDim.new(1, 0),
+			Parent = canvas,
+		})
+		Create("UIStroke", {
+			Color = WHITE,
+			Thickness = random() < 0.5 and 1 or 1.5,
+			Transparency = 0.76 + random() * 0.18,
+			Parent = blob,
+		})
+	end
+	table.insert(Textures, canvas)
+	return canvas
+end
+
+function Library:SetTextures(enabled)
+	self.Textures = enabled ~= false
+	for index = #Textures, 1, -1 do
+		local canvas = Textures[index]
+		if canvas.Parent then
+			canvas.Visible = self.Textures
+		else
+			table.remove(Textures, index)
+		end
+	end
+	if self._SaveSettings then
+		self:_SaveSettings()
+	end
+end
+
+--------------------------------------------------------------------------------
 -- Screen, shared input dispatch and floating layers
 --------------------------------------------------------------------------------
 
@@ -1217,7 +1367,8 @@ function Library:Notify(options, duration)
 	self:_Gui()
 	local kind = NotifyIcons[options.Type] and options.Type or "Info"
 	local color = NotifyColors[kind] or self.Theme.Accent
-	local lifetime = options.Duration or 4
+	local glow = color:Lerp(WHITE, 0.35)
+	local lifetime = math.max(tonumber(options.Duration) or 4, 0.5)
 	local side = self.NotifySide == "Left" and -1 or 1
 	Notifications.Count += 1
 
@@ -1228,41 +1379,65 @@ function Library:Notify(options, duration)
 		LayoutOrder = Notifications.Count,
 		Parent = Notifications.Holder,
 	})
-	local card = Create("Frame", {
-		Position = UDim2.new(side * 1.2, 0, 0, 0),
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+	-- A CanvasGroup lets the whole card fade as one layer.
+	local card = Create("CanvasGroup", {
+		Position = UDim2.new(side * 0.4, 0, 0, 0),
+		Size = UDim2.new(1, 0, 0, 60),
 		Theme = { BackgroundColor3 = "Panel" },
-		Corner = 7,
-		Stroke = "Border",
+		GroupTransparency = 1,
+		Corner = 9,
 		Parent = holder,
 	})
+	local tint = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = color, Parent = card })
+	Create("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.8),
+			NumberSequenceKeypoint.new(0.45, 0.96),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = tint,
+	})
 	Create("Frame", {
-		Position = UDim2.fromOffset(0, 10),
-		Size = UDim2.new(0, 3, 1, -20),
-		BackgroundColor3 = color,
-		Corner = UDim.new(1, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundTransparency = 1,
+		Corner = 8,
+		Stroke = "Border",
 		Parent = card,
 	})
+	local edge = Create("Frame", {
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(0, 3, 1, 0),
+		BackgroundColor3 = WHITE,
+		Parent = card,
+	})
+	Create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(glow, color),
+		Parent = edge,
+	})
+
 	local badge = Create("Frame", {
-		Position = UDim2.fromOffset(14, 12),
-		Size = UDim2.fromOffset(26, 26),
+		Position = UDim2.fromOffset(15, 14),
+		Size = UDim2.fromOffset(32, 32),
 		BackgroundColor3 = color,
-		BackgroundTransparency = 0.82,
+		BackgroundTransparency = 0.84,
 		Corner = UDim.new(1, 0),
 		Parent = card,
 	})
-	local icon = BuildIcon(NotifyIcons[kind], 14, color)
+	Create("UIStroke", { Color = color, Transparency = 0.55, Parent = badge })
+	local icon = BuildIcon(NotifyIcons[kind], 15, glow)
 	icon.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.Frame.Position = UDim2.fromScale(0.5, 0.5)
 	icon.Frame.Parent = badge
 
 	local text = Create("Frame", {
-		Position = UDim2.fromOffset(50, 0),
-		Size = UDim2.new(1, -80, 0, 0),
+		Position = UDim2.fromOffset(60, 0),
+		Size = UDim2.new(1, -100, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
-		Padding = { 11, 13, 0, 0 },
+		Padding = { 13, 16, 0, 0 },
 		List = { Padding = 3 },
 		Parent = card,
 	})
@@ -1289,34 +1464,63 @@ function Library:Notify(options, duration)
 			Parent = text,
 		})
 	end
-	local close = Create("TextButton", {
+	Create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -8, 0, 8),
-		Size = UDim2.fromOffset(18, 18),
-		BackgroundTransparency = 1,
+		Position = UDim2.new(1, -32, 0, 14),
+		Size = UDim2.fromOffset(40, 14),
+		Text = os.date("%H:%M"),
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Theme = { TextColor3 = "DimText" },
 		Parent = card,
 	})
-	local closeIcon = BindIcon(BuildIcon("x", 10), "DimText")
+	local close = Create("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 10),
+		Size = UDim2.fromOffset(20, 20),
+		Theme = { BackgroundColor3 = "Hover" },
+		BackgroundTransparency = 1,
+		Corner = 5,
+		Parent = card,
+	})
+	local closeIcon = BuildIcon("x", 10, self.Theme.DimText)
 	closeIcon.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	closeIcon.Frame.Position = UDim2.fromScale(0.5, 0.5)
 	closeIcon.Frame.Parent = close
-	local progress = Create("Frame", {
+	close.MouseEnter:Connect(function()
+		Tween(close, { BackgroundTransparency = 0 })
+		PaintIcon(closeIcon, Library.Theme.Text)
+	end)
+	close.MouseLeave:Connect(function()
+		Tween(close, { BackgroundTransparency = 1 })
+		PaintIcon(closeIcon, Library.Theme.DimText)
+	end)
+
+	local track = Create("Frame", {
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 8, 1, 0),
-		Size = UDim2.new(1, -16, 0, 2),
-		BackgroundColor3 = color,
-		BackgroundTransparency = 0.3,
-		Corner = UDim.new(1, 0),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 3),
+		Theme = { BackgroundColor3 = "Element" },
 		Parent = card,
 	})
+	local fill = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, Parent = track })
+	Create("UIGradient", { Color = ColorSequence.new(color, glow), Parent = fill })
 
-	local closed = false
+	-- The card's height follows its text column explicitly, so the full-size
+	-- decoration layers never feed back into an automatic size.
+	local function Fit()
+		card.Size = UDim2.new(1, 0, 0, math.max(60, text.AbsoluteSize.Y / Notifications.Scale.Scale))
+	end
+	text:GetPropertyChangedSignal("AbsoluteSize"):Connect(Fit)
+	Fit()
+
+	local closed, hovered = false, false
 	local function Close()
 		if closed then
 			return
 		end
 		closed = true
-		Tween(card, { Position = UDim2.new(side * 1.2, 0, 0, 0) }, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+		Tween(card, { Position = UDim2.new(side * 0.4, 0, 0, 0), GroupTransparency = 1 }, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 		task.delay(Library.Animations and 0.3 or 0, function()
 			if not holder.Parent then
 				return
@@ -1324,16 +1528,33 @@ function Library:Notify(options, duration)
 			local height = holder.AbsoluteSize.Y / Notifications.Scale.Scale
 			holder.AutomaticSize = Enum.AutomaticSize.None
 			holder.Size = UDim2.new(1, 0, 0, height)
-			card.AutomaticSize = Enum.AutomaticSize.None
-			Tween(holder, { Size = UDim2.new(1, 0, 0, 0) }, 0.2)
-			task.delay(Library.Animations and 0.22 or 0, holder.Destroy, holder)
+			Tween(holder, { Size = UDim2.new(1, 0, 0, 0) }, 0.22)
+			task.delay(Library.Animations and 0.24 or 0, holder.Destroy, holder)
 		end)
 	end
 
 	close.Activated:Connect(Close)
-	Tween(card, { Position = UDim2.new() }, 0.4)
-	Tween(progress, { Size = UDim2.new(0, 0, 0, 2) }, lifetime, Enum.EasingStyle.Linear)
-	task.delay(lifetime, Close)
+	-- Hovering pauses the countdown so a notification can be read.
+	card.MouseEnter:Connect(function()
+		hovered = true
+	end)
+	card.MouseLeave:Connect(function()
+		hovered = false
+	end)
+	Tween(card, { Position = UDim2.new(), GroupTransparency = 0 }, 0.45)
+	task.spawn(function()
+		local remaining, last = lifetime, os.clock()
+		while not closed and remaining > 0 and not Library.Unloaded do
+			task.wait(0.03)
+			local now = os.clock()
+			if not hovered then
+				remaining -= now - last
+			end
+			last = now
+			fill.Size = UDim2.fromScale(math.max(remaining / lifetime, 0), 1)
+		end
+		Close()
+	end)
 	return { Close = Close }
 end
 
@@ -1512,7 +1733,8 @@ local function OnInputBegan(input)
 	if not name then
 		return
 	end
-	if name == Library.MenuKey and Library.Window then
+	if name == Library.MenuKey and Library.Window and os.clock() - (Library._lastMenuToggle or 0) > 0.05 then
+		Library._lastMenuToggle = os.clock()
 		Library.Window:Toggle()
 	end
 	local list = KeyMap[name]
@@ -1664,17 +1886,25 @@ function Library:CreateWindow(options)
 	options = options or {}
 	local title = options.Title or "MyUI"
 
-	-- Running the script again replaces the old copy instead of stacking UIs.
+	-- Running the script again replaces every older copy (any title, any
+	-- version) instead of stacking UIs that all listen for the menu key.
 	local env = (getgenv and getgenv()) or _G
-	local key = "__MyUI_" .. title
-	local previous = env[key]
-	if type(previous) == "table" and previous ~= self and type(previous.Unload) == "function" then
-		pcall(previous.Unload, previous)
+	local stale = {}
+	for key, previous in env do
+		if type(key) == "string" and string.sub(key, 1, 6) == "__MyUI" and previous ~= self then
+			stale[key] = previous
+		end
 	end
-	env[key] = self
+	for key, previous in stale do
+		env[key] = nil
+		if type(previous) == "table" and type(previous.Unload) == "function" then
+			pcall(previous.Unload, previous)
+		end
+	end
+	env.__MyUI = self
 	self:OnUnload(function()
-		if env[key] == self then
-			env[key] = nil
+		if env.__MyUI == self then
+			env.__MyUI = nil
 		end
 	end)
 
@@ -1793,6 +2023,7 @@ function Library:CreateWindow(options)
 		Parent = cards,
 	})
 	Create("UIGradient", { Rotation = 20, Theme = { Color = AccentSequence }, Parent = brand })
+	AddTexture(brand, 1337, 18, 7, 1.3)
 	local sheen = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, Corner = 7, Parent = brand })
 	Create("UIGradient", {
 		Rotation = -35,
@@ -1973,13 +2204,6 @@ function Library:CreateWindow(options)
 		BackgroundTransparency = 1,
 		Parent = main,
 	})
-	window._hint = Create("TextLabel", {
-		Position = UDim2.fromOffset(20, 0),
-		Size = UDim2.new(0.5, -20, 1, 0),
-		TextSize = 11,
-		Theme = { TextColor3 = "DimText" },
-		Parent = footer,
-	})
 	local footerText = Create("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -26, 0.5, 0),
@@ -2076,7 +2300,6 @@ function Library:CreateWindow(options)
 		window:_MobileButton(options.Icon)
 	end
 
-	window:_UpdateHint()
 	if options.SettingsTab ~= false then
 		window:_BuildSettings(options)
 	end
@@ -2088,12 +2311,154 @@ function Library:CreateWindow(options)
 		end)
 	end
 
-	window.Root.Visible = true
+	if options.LoadingScreen ~= false then
+		window:_Loading(options)
+	else
+		window.Root.Visible = true
+	end
 	return window
 end
 
-function Window:_UpdateHint()
-	self._hint.Text = Library.MenuKey ~= "None" and ("[" .. KeyDisplay(Library.MenuKey) .. "] toggle interface") or ""
+-- Centered loading card shown while the script builds its tabs; the window
+-- pops in once it finishes. Disable with `LoadingScreen = false`.
+function Window:_Loading(options)
+	local window = self
+	local duration = math.max(tonumber(options.LoadingTime) or 1.8, 0.3)
+	self._loading = true
+	self.Visible = false
+	self.Root.Visible = false
+
+	local card = Create("CanvasGroup", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(330, 164),
+		Theme = { BackgroundColor3 = "Panel" },
+		GroupTransparency = 1,
+		ZIndex = 30,
+		Corner = 12,
+		Parent = ScreenGui,
+	})
+	local scale = Create("UIScale", { Scale = Library.Scale * 0.9, Parent = card })
+	Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+		Corner = 11,
+		Stroke = "Border",
+		Parent = card,
+	})
+
+	local banner = Create("Frame", { Size = UDim2.new(1, 0, 0, 66), BackgroundColor3 = WHITE, Parent = card })
+	Create("UIGradient", { Rotation = 15, Theme = { Color = AccentSequence }, Parent = banner })
+	AddTexture(banner, 4242, 22, 0, 1.4)
+	local icon = BindIcon(BuildIcon(options.Icon or "sparkle", 28), "OnAccent")
+	icon.Frame.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Frame.Position = UDim2.new(0, 18, 0.5, 0)
+	icon.Frame.Parent = banner
+	local title, subtitle = CardText(banner, 58, self.Title, "Loading")
+	title.TextSize = 15
+	Bind(title, { TextColor3 = "OnAccent" })
+	Bind(subtitle, { TextColor3 = "OnAccent" })
+	subtitle.TextTransparency = 0.15
+	title.Parent.Size = UDim2.new(1, -110, 1, 0)
+
+	-- Spinner: a ring whose stroke fades along a rotating gradient.
+	local spinner = Create("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -20, 0.5, 0),
+		Size = UDim2.fromOffset(22, 22),
+		BackgroundTransparency = 1,
+		Corner = UDim.new(1, 0),
+		Parent = banner,
+	})
+	local ring = Create("UIStroke", { Thickness = 2.5, Parent = spinner })
+	Bind(ring, { Color = "OnAccent" })
+	local sweep = Create("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.5, 0.35),
+			NumberSequenceKeypoint.new(0.75, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = ring,
+	})
+	local spin = TweenService:Create(sweep, TweenInfo.new(0.9, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1), { Rotation = 360 })
+	spin:Play()
+
+	local status = Create("TextLabel", {
+		Position = UDim2.fromOffset(20, 80),
+		Size = UDim2.new(1, -100, 0, 16),
+		Text = "Preparing interface...",
+		TextSize = 12,
+		Theme = { TextColor3 = "SubText" },
+		Parent = card,
+	})
+	local percent = Create("TextLabel", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -20, 0, 80),
+		Size = UDim2.fromOffset(60, 16),
+		Text = "0%",
+		TextSize = 12,
+		Weight = "Bold",
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Theme = { TextColor3 = "Text" },
+		Parent = card,
+	})
+	local track = Create("Frame", {
+		Position = UDim2.fromOffset(20, 106),
+		Size = UDim2.new(1, -40, 0, 6),
+		Theme = { BackgroundColor3 = "Element" },
+		Corner = UDim.new(1, 0),
+		Parent = card,
+	})
+	local fill = Create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = WHITE,
+		Corner = UDim.new(1, 0),
+		Parent = track,
+	})
+	Create("UIGradient", { Theme = { Color = AccentSequence }, Parent = fill })
+	Create("TextLabel", {
+		Position = UDim2.fromOffset(20, 126),
+		Size = UDim2.new(1, -40, 0, 22),
+		Text = "Press [" .. KeyDisplay(Library.MenuKey) .. "] to toggle the menu",
+		TextSize = 11,
+		Theme = { TextColor3 = "DimText" },
+		Parent = card,
+	})
+
+	Tween(card, { GroupTransparency = 0 }, 0.35)
+	Tween(scale, { Scale = Library.Scale }, 0.5, Enum.EasingStyle.Back)
+
+	task.spawn(function()
+		local steps = { "Preparing interface", "Loading configs", "Applying theme", "Almost there", "Ready" }
+		local start = os.clock()
+		while not Library.Unloaded do
+			local alpha = math.clamp((os.clock() - start) / duration, 0, 1)
+			local eased = 1 - (1 - alpha) ^ 3
+			fill.Size = UDim2.fromScale(eased, 1)
+			percent.Text = math.floor(eased * 100 + 0.5) .. "%"
+			status.Text = steps[math.min(#steps, math.floor(alpha * (#steps - 1)) + 1)] .. (alpha < 1 and "..." or "")
+			local gameName = window._subtitle.Text
+			subtitle.Text = gameName ~= "" and gameName or "Loading"
+			if alpha >= 1 then
+				break
+			end
+			task.wait()
+		end
+		task.wait(0.3)
+		Tween(card, { GroupTransparency = 1 }, 0.3)
+		Tween(scale, { Scale = Library.Scale * 1.05 }, 0.3)
+		task.wait(Library.Animations and 0.3 or 0)
+		spin:Cancel()
+		card:Destroy()
+		window._loading = false
+		if not Library.Unloaded then
+			window:Toggle(true)
+		end
+	end)
 end
 
 function Window:_MobileButton(iconName)
@@ -2133,6 +2498,9 @@ function Window:_MobileButton(iconName)
 end
 
 function Window:Toggle(state)
+	if self._loading then
+		return
+	end
 	if state == nil then
 		state = not self.Visible
 	end
@@ -2371,6 +2739,9 @@ end
 function Tab:_Paint(active, instant)
 	local theme = Library.Theme
 	local animate = Animate(instant)
+	if active then
+		self:_Textures()
+	end
 	if active and not instant then
 		self.Page.Visible = true
 		self.Page.Position = UDim2.fromOffset(0, 10)
@@ -2384,6 +2755,15 @@ function Tab:_Paint(active, instant)
 	animate(self.Label, { TextColor3 = active and theme.Text or theme.SubText })
 	SetWeight(self.Label, active and "Bold" or "SemiBold")
 	PaintIcon(self.Icon, active and theme.AccentGlow or theme.SubText, instant)
+end
+
+function Tab:_Textures()
+	for _, section in self.Sections do
+		if section._textureSeed then
+			AddTexture(section._header, section._textureSeed, 8, 6)
+			section._textureSeed = nil
+		end
+	end
 end
 
 function Tab:Select()
@@ -2631,12 +3011,17 @@ function Tab:_AddSection(options, side, sub)
 		end
 		section:SetCollapsed(not section.Collapsed)
 	end)
-	section._filler, section._chevron = filler, chevron
+	section._filler, section._chevron, section._header = filler, chevron, header
+	-- Header textures are built the first time the tab is shown (see Tab:_Textures).
+	section._textureSeed = 7919 * (#self.Sections + 1) + #self.Title * 131
 	if options.Collapsed then
 		section:SetCollapsed(true)
 	end
 
 	table.insert(self.Sections, section)
+	if self.Window.CurrentTab == self then
+		self:_Textures()
+	end
 	self:ApplyFilter()
 	return section
 end
@@ -3983,9 +4368,6 @@ function Keybind:SetValue(key, mode)
 	self:_Render()
 	if self.Internal then
 		Library.MenuKey = key
-		if Library.Window then
-			Library.Window:_UpdateHint()
-		end
 		Library:_SaveSettings()
 	end
 	if changed then
@@ -5014,6 +5396,7 @@ function Library:_SaveSettings()
 			Font = self.FontName,
 			Scale = self._savedScale and self.Scale or nil,
 			Animations = self.Animations,
+			Textures = self.Textures,
 			MenuKey = self.MenuKey,
 			Keybinds = self.ShowKeybinds,
 			HideIdentity = self.HideIdentity,
@@ -5051,6 +5434,9 @@ function Library:_LoadSettings()
 	end
 	if type(data.Animations) == "boolean" then
 		self.Animations = data.Animations
+	end
+	if type(data.Textures) == "boolean" then
+		self.Textures = data.Textures
 	end
 	if type(data.MenuKey) == "string" then
 		self.MenuKey = data.MenuKey
@@ -5507,6 +5893,15 @@ function Window:_BuildSettings(options)
 		end,
 	})
 	style:AddToggle({
+		Title = "Textures",
+		Default = Library.Textures,
+		Save = false,
+		Description = "Caustic pattern on the brand card and section headers.",
+		Callback = function(value)
+			Library:SetTextures(value)
+		end,
+	})
+	style:AddToggle({
 		Title = "Animations",
 		Default = Library.Animations,
 		Save = false,
@@ -5657,6 +6052,8 @@ function Library:Unload()
 	table.clear(RainbowPickers)
 	table.clear(KeyMap)
 	table.clear(ThemeListeners)
+	table.clear(Registry)
+	table.clear(FontRegistry)
 	self._binding = nil
 	if ScreenGui then
 		ScreenGui:Destroy()

@@ -21,8 +21,10 @@ See [`Example.lua`](Example.lua) for a script that recreates the reference layou
 - **Color picker** with a hue/saturation **wheel**, value and alpha bars, hex and RGB input, rainbow mode, and copy/paste.
 - **Keybinds** support Toggle, Hold and Always modes (right-click to switch). They can attach to a toggle and show in an optional keybind list overlay.
 - **Config system:** create, load, **overwrite** (with confirmation) and delete configs, plus **auto save**, **auto load**, and clipboard import/export.
-- **UI customization:** 10 theme presets, per-color editing, saved custom themes, 13 fonts, window transparency, interface scale and an animations switch. These settings persist across sessions.
-- **Extras:** notifications, tooltips, a menu toggle key, a resizable and draggable window, a mobile toggle button, streamer mode ("Hide Identity"), and clean unloading.
+- **UI customization:** 24 theme presets (full palettes such as Dracula, Nord, Tokyo Night and Sunset, not just accent swaps), per-color editing, saved custom themes, 13 fonts, window transparency, interface scale, and switches for textures and animations. These settings persist across sessions.
+- **Loading screen:** a centered card with the brand banner, your game name, a spinner and a progress bar; the window pops in when it finishes.
+- **Texture:** a subtle water-caustic pattern on the brand card and section headers, drawn procedurally (no images).
+- **Extras:** notifications (with a hover-to-pause timer), tooltips, a menu toggle key, a resizable and draggable window, a mobile toggle button, streamer mode ("Hide Identity"), and clean unloading.
 
 ## Window
 
@@ -30,6 +32,8 @@ See [`Example.lua`](Example.lua) for a script that recreates the reference layou
 local Window = Library:CreateWindow({
 	Title = "XX / DEV",                 -- brand card title
 	SubTitle = "Grand Piece Online",    -- game name under the title; omit to auto-detect it
+	LoadingScreen = true,               -- centered loading card before the window appears
+	LoadingTime = 1.8,                  -- seconds the loading bar takes
 	Icon = "sparkle",                   -- built-in icon name, asset id, or a text glyph
 	Footer = "Developer Mode",          -- bottom-right tag
 	FooterRainbow = true,               -- rainbow gradient on the tag (default true)
@@ -243,8 +247,10 @@ Library:ImportConfig(json)
 ## Customization
 
 ```lua
-Library:SetTheme("Midnight")                        -- presets: Nerv, Crimson, Emerald, Amethyst,
-                                                    -- Amber, Sakura, Glacier, Midnight, Mono, Daylight
+Library:SetTheme("Dracula")  -- presets: Nerv, Crimson, Emerald, Amethyst, Amber, Sakura, Glacier,
+                             -- Mono, Midnight, Ocean, Sunset, Aurora, Blood Moon, Neon, Cyberpunk,
+                             -- Royal Gold, Nord, Dracula, Mocha, Tokyo Night, Gruvbox, Rose Pine,
+                             -- Daylight, Frost
 Library:SetThemeColor("Accent", Color3.fromRGB(255, 80, 120))
 Library:SaveTheme("Mine")                           -- saved under themes/, listed with presets
 Library:SetTheme("Mine")
@@ -252,6 +258,7 @@ Library:SetFont("Builder Sans")                     -- Gotham, Builder Sans, Rob
                                                     -- Source Sans, Arimo, Josefin Sans, Titillium Web,
                                                     -- Jura, Michroma, Oswald, Roboto Mono
 Library.Animations = false                          -- instant state changes, lowest overhead
+Library:SetTextures(false)                          -- hide the caustic texture
 Library:SetKeybindListVisible(true)
 Library:Notify({ Title = "Hi", Content = "Rich <b>text</b>", Type = "Success", Duration = 4 })
 -- Type: "Info" | "Success" | "Warning" | "Error"; also Library:Notify("text", seconds)
@@ -275,4 +282,4 @@ Library:OnUnload(function() end)
 Library:Unload()  -- disconnects everything and destroys the GUI
 ```
 
-Running the script again automatically unloads the previous copy with the same title, so interfaces don't stack.
+Running the script again automatically unloads every earlier copy (whatever its title), so interfaces never stack or fight over the menu key.
