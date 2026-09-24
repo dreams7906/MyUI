@@ -5,8 +5,10 @@ A single-file Luau interface library for Roblox, styled after the "XX / DEV" lay
 Every icon, the HSV color wheel and the window shadow are drawn from plain GuiObjects. The library needs **no uploaded image assets**, so nothing can fail to load.
 
 ```lua
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dreams7906/MyUI/main/MyUI.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dreams7906/MyUI/claude/cool-hawking-qhmbhp/MyUI.lua"))()
 ```
+
+The raw URL must point at a branch that contains `MyUI.lua`. Once this is merged into `main`, you can swap the branch name for `main`.
 
 See [`Example.lua`](Example.lua) for a script that recreates the reference layout and uses every element.
 

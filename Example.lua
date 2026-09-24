@@ -9,7 +9,18 @@
 local HubName = "XX / DEV"
 local GameName = "Grand Piece Online"
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dreams7906/MyUI/main/MyUI.lua"))()
+local LIBRARY_URL = "https://raw.githubusercontent.com/dreams7906/MyUI/claude/cool-hawking-qhmbhp/MyUI.lua"
+
+local source = game:HttpGet(LIBRARY_URL)
+local chunk, compileError = loadstring(source)
+if not chunk then
+	error("MyUI failed to load from " .. LIBRARY_URL .. "\n" .. tostring(compileError)
+		.. "\nResponse started with: " .. string.sub(source, 1, 80))
+end
+local Library = chunk()
+if type(Library) ~= "table" then
+	error("MyUI did not return the library (response started with: " .. string.sub(source, 1, 80) .. ")")
+end
 local Options = Library.Options
 
 local Window = Library:CreateWindow({
