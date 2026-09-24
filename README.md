@@ -1,6 +1,6 @@
 # MyUI
 
-A single-file Luau interface library for Roblox, styled after the "NERV / DEV" layout: header cards (brand, profile, clock, FPS/ping), a sidebar with icons, sub-tabs, two-column gradient-headed sections, and a rainbow footer tag.
+A single-file Luau interface library for Roblox, styled after the "XX / DEV" layout: header cards (brand, profile, clock, FPS/ping), a sidebar with icons, sub-tabs, two-column gradient-headed sections, and a rainbow footer tag.
 
 Every icon, the HSV color wheel and the window shadow are drawn from plain GuiObjects. The library needs **no uploaded image assets**, so nothing can fail to load.
 
@@ -26,12 +26,12 @@ See [`Example.lua`](Example.lua) for a script that recreates the reference layou
 
 ```lua
 local Window = Library:CreateWindow({
-	Title = "NERV / DEV",               -- brand card title
-	SubTitle = "Grand Piece Online",    -- brand card subtitle
+	Title = "XX / DEV",                 -- brand card title
+	SubTitle = "Grand Piece Online",    -- game name under the title; omit to auto-detect it
 	Icon = "sparkle",                   -- built-in icon name, asset id, or a text glyph
 	Footer = "Developer Mode",          -- bottom-right tag
 	FooterRainbow = true,               -- rainbow gradient on the tag (default true)
-	ConfigFolder = "NERV/GPO",          -- where configs/themes/settings are stored
+	ConfigFolder = "XX/GPO",            -- where configs/themes/settings are stored
 	ToggleKey = Enum.KeyCode.RightShift,
 	Size = UDim2.fromOffset(880, 500),  -- also accepts Vector2
 	MinSize = Vector2.new(680, 430),    -- resize limit
@@ -48,7 +48,7 @@ Window:SelectTab("Farm")         -- by title, index or tab object
 Window:Toggle()                  -- show/hide (also: Library:Toggle())
 Window:SetScale(0.9)
 Window:SetTitle("New title")
-Window:SetSubTitle("New subtitle")
+Window:SetSubTitle("Blox Fruits")  -- change the game name at runtime
 Window:SetFooter("Beta")
 ```
 

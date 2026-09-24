@@ -1,18 +1,24 @@
 --[[
-	MyUI example: recreates the "NERV / DEV" reference layout and shows off
+	MyUI example: recreates the "XX / DEV" reference layout and shows off
 	every element. The game logic is placeholder - wire the callbacks to your own
 	functions.
 ]]
+
+-- Change these two lines per game. Leave GameName as nil to show the
+-- current game's name automatically.
+local HubName = "XX / DEV"
+local GameName = "Grand Piece Online"
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dreams7906/MyUI/main/MyUI.lua"))()
 local Options = Library.Options
 
 local Window = Library:CreateWindow({
-	Title = "NERV / DEV",
-	SubTitle = "Grand Piece Online",
+	Title = HubName,
+	SubTitle = GameName,
 	Icon = "sparkle",
 	Footer = "Developer Mode",
-	ConfigFolder = "NERV/GrandPieceOnline",
+	-- One config folder per game, e.g. "XX/GrandPieceOnline"
+	ConfigFolder = "XX/" .. string.gsub(GameName or tostring(game.PlaceId), "%W", ""),
 	ToggleKey = Enum.KeyCode.RightShift,
 	Size = UDim2.fromOffset(880, 500),
 })

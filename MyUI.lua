@@ -1809,10 +1809,22 @@ function Library:CreateWindow(options)
 	brandIcon.Frame.AnchorPoint = Vector2.new(0, 0.5)
 	brandIcon.Frame.Position = UDim2.new(0, 13, 0.5, 0)
 	brandIcon.Frame.Parent = brand
-	local titleLabel, subtitleLabel = CardText(brand, 50, title, options.SubTitle or options.Subtitle or "")
+	local subtitle = options.SubTitle or options.Subtitle
+	local titleLabel, subtitleLabel = CardText(brand, 50, title, subtitle or "")
 	Bind(titleLabel, { TextColor3 = "OnAccent" })
 	Bind(subtitleLabel, { TextColor3 = "OnAccent" })
 	subtitleLabel.TextTransparency = 0.15
+	if subtitle == nil then
+		-- No subtitle given: show the current game's name (GetProductInfo yields).
+		task.spawn(function()
+			local ok, info = pcall(function()
+				return GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+			end)
+			if ok and type(info) == "table" and type(info.Name) == "string" and subtitleLabel.Text == "" then
+				subtitleLabel.Text = info.Name
+			end
+		end)
+	end
 	window._title, window._subtitle = titleLabel, subtitleLabel
 
 	local profile = Card(2)
