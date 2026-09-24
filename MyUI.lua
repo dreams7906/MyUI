@@ -2323,7 +2323,7 @@ end
 -- pops in once it finishes. Disable with `LoadingScreen = false`.
 function Window:_Loading(options)
 	local window = self
-	local duration = math.max(tonumber(options.LoadingTime) or 1.8, 0.3)
+	local duration = math.max(tonumber(options.LoadingTime) or 3.5, 0.3)
 	self._loading = true
 	self.Visible = false
 	self.Root.Visible = false
@@ -2429,15 +2429,16 @@ function Window:_Loading(options)
 		Parent = card,
 	})
 
-	Tween(card, { GroupTransparency = 0 }, 0.35)
-	Tween(scale, { Scale = Library.Scale }, 0.5, Enum.EasingStyle.Back)
+	Tween(card, { GroupTransparency = 0 }, 0.6)
+	Tween(scale, { Scale = Library.Scale }, 0.7, Enum.EasingStyle.Back)
 
 	task.spawn(function()
 		local steps = { "Preparing interface", "Loading configs", "Applying theme", "Almost there", "Ready" }
 		local start = os.clock()
 		while not Library.Unloaded do
 			local alpha = math.clamp((os.clock() - start) / duration, 0, 1)
-			local eased = 1 - (1 - alpha) ^ 3
+			-- Ease in and out: starts slowly, speeds up, then settles at 100%.
+			local eased = alpha < 0.5 and 4 * alpha ^ 3 or 1 - (-2 * alpha + 2) ^ 3 / 2
 			fill.Size = UDim2.fromScale(eased, 1)
 			percent.Text = math.floor(eased * 100 + 0.5) .. "%"
 			status.Text = steps[math.min(#steps, math.floor(alpha * (#steps - 1)) + 1)] .. (alpha < 1 and "..." or "")
@@ -2448,10 +2449,10 @@ function Window:_Loading(options)
 			end
 			task.wait()
 		end
-		task.wait(0.3)
-		Tween(card, { GroupTransparency = 1 }, 0.3)
-		Tween(scale, { Scale = Library.Scale * 1.05 }, 0.3)
-		task.wait(Library.Animations and 0.3 or 0)
+		task.wait(0.6)
+		Tween(card, { GroupTransparency = 1 }, 0.45)
+		Tween(scale, { Scale = Library.Scale * 1.05 }, 0.45)
+		task.wait(Library.Animations and 0.45 or 0)
 		spin:Cancel()
 		card:Destroy()
 		window._loading = false

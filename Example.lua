@@ -28,6 +28,7 @@ local Window = Library:CreateWindow({
 	SubTitle = GameName,
 	Icon = "sparkle",
 	Footer = "Developer Mode",
+	LoadingTime = 3.5, -- seconds the loading screen takes; raise it to slow it down further
 	-- One config folder per game, e.g. "XX/GrandPieceOnline"
 	ConfigFolder = "XX/" .. string.gsub(GameName or tostring(game.PlaceId), "%W", ""),
 	ToggleKey = Enum.KeyCode.RightShift,
