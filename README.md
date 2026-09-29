@@ -23,7 +23,9 @@ See [`Example.lua`](Example.lua) for a script that recreates the reference layou
 - **Config system:** create, load, **overwrite** (with confirmation) and delete configs, plus **auto save**, **auto load**, and clipboard import/export.
 - **UI customization:** 24 theme presets (full palettes such as Dracula, Nord, Tokyo Night and Sunset, not just accent swaps), per-color editing, saved custom themes, 13 fonts, window transparency, interface scale, and switches for textures and animations. These settings persist across sessions.
 - **Loading screen:** a centered card with the brand banner, your game name, a spinner and a progress bar; the window pops in when it finishes.
+- **Background particles:** Snow, Stars, Fireflies, Rain, Sakura, Embers or Bubbles, with adjustable amount, speed and color (natural, theme or custom), drawn over or behind the panels. They run on engine tweens and pause while the window is hidden.
 - **Texture:** a subtle water-caustic pattern on the brand card and section headers, drawn procedurally (no images).
+- **Quality of life:** right-click any toggle, slider, input, dropdown, color or keybind row to reset it to its default. The window remembers its position, size and last open tab, and the FPS/ping readouts turn green, amber or red.
 - **Extras:** notifications (with a hover-to-pause timer), tooltips, a menu toggle key, a resizable and draggable window, a mobile toggle button, streamer mode ("Hide Identity"), and clean unloading.
 
 ## Window
@@ -34,6 +36,10 @@ local Window = Library:CreateWindow({
 	SubTitle = "Grand Piece Online",    -- game name under the title; omit to auto-detect it
 	LoadingScreen = true,               -- centered loading card before the window appears
 	LoadingTime = 3.5,                  -- seconds the loading bar takes (default 3.5)
+	Effect = "Snow",                    -- None, Snow, Stars, Fireflies, Rain, Sakura, Embers, Bubbles
+	EffectAmount = 35,                  -- particle count (1-150)
+	EffectSpeed = 1,                    -- speed multiplier
+	EffectOverPanels = true,            -- false keeps particles behind the panels
 	Icon = "sparkle",                   -- built-in icon name, asset id, or a text glyph
 	Footer = "Developer Mode",          -- bottom-right tag
 	FooterRainbow = true,               -- rainbow gradient on the tag (default true)
@@ -207,6 +213,7 @@ Section:AddDivider("optional label")
 | `:SetVisible(bool)` | Shows or hides the element |
 | `:SetTitle(text)` | Renames the element (search follows the new title) |
 | `:SetTooltip(text)` | Sets the hover tooltip |
+| `:Reset()` | Restores the value it was created with (also on right-click) |
 | `:Destroy()` | Removes the element and its flag |
 
 `Library.Flags[flag]` holds each flag's plain value, and `Library.Options[flag]` holds the element object.
@@ -259,6 +266,13 @@ Library:SetFont("Builder Sans")                     -- Gotham, Builder Sans, Rob
                                                     -- Jura, Michroma, Oswald, Roboto Mono
 Library.Animations = false                          -- instant state changes, lowest overhead
 Library:SetTextures(false)                          -- hide the caustic texture
+Library:SetEffect("Sakura", {                       -- background particles
+	Amount = 50, Speed = 1.2,
+	ColorMode = "Theme",                            -- "Natural" | "Theme" | "Custom"
+	Color = Color3.fromRGB(255, 255, 255),          -- used by "Custom"
+	OverPanels = true,
+})
+Library:SetEffect("None")                           -- turn particles off
 Library:SetKeybindListVisible(true)
 Library:Notify({ Title = "Hi", Content = "Rich <b>text</b>", Type = "Success", Duration = 4 })
 -- Type: "Info" | "Success" | "Warning" | "Error"; also Library:Notify("text", seconds)

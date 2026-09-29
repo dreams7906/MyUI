@@ -58,6 +58,12 @@ local Library = {
 	Scale = 1,
 	Animations = true,
 	Textures = true,
+	Effect = "Snow",
+	EffectAmount = 35,
+	EffectSpeed = 1,
+	EffectColorMode = "Natural",
+	EffectColor = Color3.new(1, 1, 1),
+	EffectFront = true,
 	MenuKey = "RightShift",
 	NotifySide = "Right",
 	HideIdentity = false,
@@ -325,6 +331,19 @@ local ThemeLabels = {
 	Background = "Background", Panel = "Panels", Element = "Elements", Hover = "Hover",
 	Border = "Borders", Text = "Text", SubText = "Secondary Text", DimText = "Muted Text",
 	OnAccent = "Text On Accent",
+}
+
+-- Background particle kinds (see Window:_BuildEffects)
+local EffectKinds = { "None", "Snow", "Stars", "Fireflies", "Rain", "Sakura", "Embers", "Bubbles" }
+local EffectColorModes = { "Natural", "Theme", "Custom" }
+local NaturalColors = {
+	Snow = rgb(236, 242, 255),
+	Stars = rgb(255, 255, 255),
+	Fireflies = rgb(214, 255, 122),
+	Rain = rgb(168, 198, 255),
+	Sakura = rgb(255, 168, 204),
+	Embers = rgb(255, 138, 58),
+	Bubbles = rgb(196, 228, 255),
 }
 
 local BaseTheme = {
@@ -1853,6 +1872,12 @@ local function GetPing()
 	return ok and math.floor(value + 0.5) or 0
 end
 
+-- Wraps a number in green / amber / red rich text for the header stats.
+local function Graded(value, good, okay)
+	local color = good and "#48C774" or okay and "#F0B43C" or "#EB4D4B"
+	return '<font color="' .. color .. '">' .. value .. "</font>"
+end
+
 -- Stacks two labels vertically inside a header card.
 local function CardText(parent, x, first, second)
 	local holder = Create("Frame", {
@@ -1929,6 +1954,14 @@ function Library:CreateWindow(options)
 		self.MenuKey = KeyName(options.ToggleKey)
 	end
 	self.AutoSave = options.AutoSave == true
+	if options.Effect ~= nil then
+		self.Effect = table.find(EffectKinds, options.Effect) and options.Effect or "None"
+	end
+	self.EffectAmount = tonumber(options.EffectAmount) or self.EffectAmount
+	self.EffectSpeed = tonumber(options.EffectSpeed) or self.EffectSpeed
+	if options.EffectOverPanels ~= nil then
+		self.EffectFront = options.EffectOverPanels == true
+	end
 	self:_LoadSettings()
 	CurrentFamily = FontFamily(self.FontName)
 	table.clear(FontCache)
@@ -1967,6 +2000,21 @@ function Library:CreateWindow(options)
 	})
 	window.Root = root
 	window.UIScale = Create("UIScale", { Scale = self.Scale, Parent = root })
+
+	-- Restore the last position and size if they still fit on this screen.
+	local saved = self._savedWindow
+	if type(saved) == "table" then
+		local camera = workspace.CurrentCamera
+		local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+		local width, height = tonumber(saved.W), tonumber(saved.H)
+		local x, y = tonumber(saved.X), tonumber(saved.Y)
+		if width and height then
+			root.Size = UDim2.fromOffset(math.max(width, window.MinSize.X), math.max(height, window.MinSize.Y))
+		end
+		if x and y and math.abs(x) < viewport.X / 2 - 40 and math.abs(y) < viewport.Y / 2 - 40 then
+			root.Position = UDim2.new(0.5, x, 0.5, y)
+		end
+	end
 
 	-- Layered soft shadow (no image assets).
 	for index, transparency in { 0.82, 0.9, 0.95 } do
@@ -2097,6 +2145,7 @@ function Library:CreateWindow(options)
 	local fpsLabel, pingLabel = StatCard(4, "info")
 	fpsLabel.Text = "FPS: --"
 	pingLabel.Text = "Ping: -- ms"
+	fpsLabel.RichText, pingLabel.RichText = true, true
 
 	function window:_RefreshIdentity()
 		if Library.HideIdentity or not LocalPlayer then
@@ -2232,6 +2281,12 @@ function Library:CreateWindow(options)
 	})
 	BindIcon(BuildIcon("grip", 14), "DimText").Frame.Parent = grip
 
+	OnTheme(function()
+		if Library.EffectColorMode == "Theme" then
+			window:_RecolorEffects()
+		end
+	end)
+
 	window.Overlay = Create("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -2251,6 +2306,8 @@ function Library:CreateWindow(options)
 		StartDrag(function(move)
 			local delta = move.Position - start
 			root.Position = UDim2.new(origin.X.Scale, origin.X.Offset + delta.X, origin.Y.Scale, origin.Y.Offset + delta.Y)
+		end, function()
+			Library:_SaveSettings()
 		end)
 	end)
 
@@ -2269,6 +2326,8 @@ function Library:CreateWindow(options)
 			root.Size = UDim2.fromOffset(width, height)
 			root.Position = startPosition
 				+ UDim2.fromOffset((width - startSize.X.Offset) * scale / 2, (height - startSize.Y.Offset) * scale / 2)
+		end, function()
+			Library:_SaveSettings()
 		end)
 	end)
 
@@ -2288,8 +2347,9 @@ function Library:CreateWindow(options)
 			local fps = math.floor(frames / math.max(now - last, 1e-3) + 0.5)
 			frames, last = 0, now
 			if root.Visible then
-				fpsLabel.Text = "FPS: " .. fps
-				pingLabel.Text = "Ping: " .. GetPing() .. " ms"
+				local ping = GetPing()
+				fpsLabel.Text = "FPS: " .. Graded(fps, fps >= 50, fps >= 30)
+				pingLabel.Text = "Ping: " .. Graded(ping, ping < 100, ping < 200) .. " ms"
 			end
 		end
 	end)
@@ -2316,6 +2376,7 @@ function Library:CreateWindow(options)
 	else
 		window.Root.Visible = true
 	end
+	window:_BuildEffects()
 	return window
 end
 
@@ -2498,6 +2559,230 @@ function Window:_MobileButton(iconName)
 	self.MobileButton = button
 end
 
+--------------------------------------------------------------------------------
+-- Background particles. They live behind every panel, move with engine-side
+-- tweens only (no per-frame Lua), and pause while the window is hidden.
+--------------------------------------------------------------------------------
+
+local function EffectColor()
+	if Library.EffectColorMode == "Theme" then
+		return Library.Theme.AccentGlow
+	elseif Library.EffectColorMode == "Custom" then
+		return Library.EffectColor
+	end
+	return NaturalColors[Library.Effect] or WHITE
+end
+
+function Window:_ClearEffects()
+	for _, tween in self._effectTweens or {} do
+		tween:Cancel()
+	end
+	self._effectTweens, self._effectParts = {}, {}
+	if self._effectLayer then
+		self._effectLayer:Destroy()
+		self._effectLayer = nil
+	end
+end
+
+function Window:_PauseEffects(paused)
+	self._effectsPaused = paused
+	for _, tween in self._effectTweens or {} do
+		if paused then
+			tween:Pause()
+		else
+			tween:Play()
+		end
+	end
+end
+
+function Window:_RecolorEffects()
+	local color = EffectColor()
+	for _, part in self._effectParts or {} do
+		part[1][part[2]] = color
+	end
+end
+
+function Window:_BuildEffects()
+	self:_ClearEffects()
+	local kind = Library.Effect
+	if kind == "None" or not table.find(EffectKinds, kind) or Library.Unloaded then
+		return
+	end
+	local window = self
+	-- Behind panels: a bottom layer inside Main. Over panels: a click-through
+	-- layer between the window and its popup overlay.
+	local front = Library.EffectFront
+	local layer = Create("Frame", {
+		Position = UDim2.fromOffset(4, 4),
+		Size = UDim2.new(1, -8, 1, -8),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Active = false,
+		ZIndex = front and 9 or 0,
+		Parent = front and self.Root or self.Main,
+	})
+	self._effectLayer = layer
+	self._effectsPaused = not self.Visible
+	local tweens, parts = self._effectTweens, self._effectParts
+	local random = Random(math.floor(os.clock() * 1000) + 7)
+	local speed = math.max(Library.EffectSpeed, 0.05)
+	local color = EffectColor()
+	local LINEAR, SINE = Enum.EasingStyle.Linear, Enum.EasingStyle.Sine
+	local IN, INOUT = Enum.EasingDirection.In, Enum.EasingDirection.InOut
+
+	local function Play(instance, info, props)
+		local tween = TweenService:Create(instance, info, props)
+		table.insert(tweens, tween)
+		if not window._effectsPaused then
+			tween:Play()
+		end
+		return tween
+	end
+	-- One-shot tweens leave the list when done, so resuming never replays them.
+	local function Once(instance, info, props, onDone)
+		local tween = Play(instance, info, props)
+		tween.Completed:Connect(function(state)
+			local index = table.find(tweens, tween)
+			if index then
+				table.remove(tweens, index)
+			end
+			if state == Enum.PlaybackState.Completed and instance.Parent then
+				onDone()
+			end
+		end)
+	end
+	local function Paint(instance, property)
+		instance[property] = color
+		table.insert(parts, { instance, property })
+		return instance
+	end
+	local function Dot(size, transparency, parent)
+		return Paint(Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(size, size),
+			BackgroundTransparency = transparency,
+			Corner = UDim.new(1, 0),
+			Parent = parent or layer,
+		}), "BackgroundColor3")
+	end
+
+	-- A handful of shared sway layers give falling particles a gentle drift
+	-- without one extra tween per particle.
+	local groups = {}
+	local function Group()
+		if #groups < 6 then
+			local amplitude = 8 + random() * 22
+			local group = Create("Frame", {
+				Position = UDim2.fromOffset(-amplitude, 0),
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Parent = layer,
+			})
+			Play(group, TweenInfo.new((2 + random() * 3) / speed, SINE, INOUT, -1, true), { Position = UDim2.fromOffset(amplitude, 0) })
+			table.insert(groups, group)
+			return group
+		end
+		return groups[math.floor(random() * #groups) + 1]
+	end
+
+	-- Moves a particle from `fromY` to `toY` forever, starting at a random
+	-- point along the path so the screen is populated immediately.
+	local function Travel(particle, x, fromY, toY, drift, duration)
+		local phase = random()
+		particle.Position = UDim2.fromScale(x + drift * phase, fromY + (toY - fromY) * phase)
+		Once(particle, TweenInfo.new(duration * (1 - phase), LINEAR), { Position = UDim2.fromScale(x + drift, toY) }, function()
+			particle.Position = UDim2.fromScale(x, fromY)
+			Play(particle, TweenInfo.new(duration, LINEAR, IN, -1), { Position = UDim2.fromScale(x + drift, toY) })
+		end)
+	end
+
+	local count = math.clamp(math.floor(Library.EffectAmount), 1, 150)
+	for _ = 1, count do
+		if kind == "Snow" then
+			local flake = Dot(2 + random() * 3, 0.15 + random() * 0.45, Group())
+			Travel(flake, random(), -0.03, 1.03, 0, (7 + random() * 6) / speed)
+		elseif kind == "Rain" then
+			local drop = Paint(Create("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.fromOffset(1, 10 + random() * 10),
+				Rotation = 12,
+				BackgroundTransparency = 0.45 + random() * 0.3,
+				Parent = layer,
+			}), "BackgroundColor3")
+			Travel(drop, random() * 1.2, -0.06, 1.06, -0.2, (0.7 + random() * 0.5) / speed)
+		elseif kind == "Sakura" then
+			local petal = Paint(Create("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.fromOffset(6 + random() * 4, 4 + random() * 2),
+				Rotation = random() * 360,
+				BackgroundTransparency = 0.1 + random() * 0.35,
+				Corner = UDim.new(1, 0),
+				Parent = Group(),
+			}), "BackgroundColor3")
+			Play(petal, TweenInfo.new((2.5 + random() * 3) / speed, LINEAR, IN, -1), { Rotation = petal.Rotation + 360 })
+			Travel(petal, random(), -0.04, 1.04, 0.08, (9 + random() * 6) / speed)
+		elseif kind == "Embers" then
+			local ember = Dot(2 + random() * 2.5, 0.1 + random() * 0.3, Group())
+			Travel(ember, random(), 1.03, -0.03, 0, (6 + random() * 5) / speed)
+			Play(ember, TweenInfo.new((0.6 + random()) / speed, SINE, INOUT, -1, true), { BackgroundTransparency = 0.85 })
+		elseif kind == "Bubbles" then
+			local bubble = Dot(6 + random() * 8, 0.9, Group())
+			Paint(Create("UIStroke", { Transparency = 0.45, Parent = bubble }), "Color")
+			Travel(bubble, random(), 1.05, -0.05, 0, (8 + random() * 6) / speed)
+		elseif kind == "Stars" then
+			local star = Dot(1 + random() * 2.2, 0.2 + random() * 0.3)
+			star.Position = UDim2.fromScale(random(), random())
+			Play(star, TweenInfo.new((0.8 + random() * 2) / speed, SINE, INOUT, -1, true), { BackgroundTransparency = 0.92 })
+		elseif kind == "Fireflies" then
+			local fly = Dot(3 + random() * 2, 0.1)
+			Paint(Create("UIStroke", { Thickness = 3, Transparency = 0.75, Parent = fly }), "Color")
+			fly.Position = UDim2.fromScale(random(), random())
+			local function Wander()
+				Once(fly, TweenInfo.new((3 + random() * 3) / speed, SINE, INOUT), { Position = UDim2.fromScale(random(), random()) }, Wander)
+			end
+			Wander()
+			Play(fly, TweenInfo.new((1 + random() * 1.5) / speed, SINE, INOUT, -1, true), { BackgroundTransparency = 0.8 })
+		end
+	end
+end
+
+function Library:SetEffect(kind, settings)
+	local rebuild = false
+	if kind ~= nil and kind ~= self.Effect then
+		self.Effect = table.find(EffectKinds, kind) and kind or "None"
+		rebuild = true
+	end
+	if type(settings) == "table" then
+		if tonumber(settings.Amount) and settings.Amount ~= self.EffectAmount then
+			self.EffectAmount = math.clamp(tonumber(settings.Amount), 1, 150)
+			rebuild = true
+		end
+		if tonumber(settings.Speed) and settings.Speed ~= self.EffectSpeed then
+			self.EffectSpeed = math.clamp(tonumber(settings.Speed), 0.1, 5)
+			rebuild = true
+		end
+		if typeof(settings.Color) == "Color3" then
+			self.EffectColor = settings.Color
+		end
+		if table.find(EffectColorModes, settings.ColorMode) then
+			self.EffectColorMode = settings.ColorMode
+		end
+		if type(settings.OverPanels) == "boolean" and settings.OverPanels ~= self.EffectFront then
+			self.EffectFront = settings.OverPanels
+			rebuild = true
+		end
+	end
+	local window = self.Window
+	if window then
+		if rebuild then
+			window:_BuildEffects()
+		else
+			window:_RecolorEffects()
+		end
+	end
+	self:_SaveSettings()
+end
+
 function Window:Toggle(state)
 	if self._loading then
 		return
@@ -2512,6 +2797,7 @@ function Window:Toggle(state)
 		Library._binding:_CancelCapture()
 	end
 	self.Root.Visible = self.Visible
+	self:_PauseEffects(not self.Visible)
 	if self.Visible then
 		self.UIScale.Scale = Library.Scale * 0.96
 		Tween(self.UIScale, { Scale = Library.Scale }, 0.28, Enum.EasingStyle.Back)
@@ -2635,6 +2921,8 @@ function Window:AddTab(options)
 	button.Activated:Connect(function()
 		window._picked = true
 		window:SelectTab(tab)
+		Library._lastTab = tab.Title
+		Library:_SaveSettings()
 	end)
 	button.MouseEnter:Connect(function()
 		if window.CurrentTab ~= tab then
@@ -2731,7 +3019,11 @@ function Window:AddTab(options)
 	end)
 	table.insert(self.Tabs, tab)
 	tab:_Paint(false, true)
-	if not self.CurrentTab or (not self._picked and self.CurrentTab.IsSettings and not options.IsSettings) then
+	if not self._picked and Library._lastTab == tab.Title then
+		-- Reopen the tab that was open last session.
+		self._picked = true
+		self:SelectTab(tab)
+	elseif not self.CurrentTab or (not self._picked and self.CurrentTab.IsSettings and not options.IsSettings) then
 		self:SelectTab(tab)
 	end
 	return tab
@@ -3184,6 +3476,43 @@ function Element:GetValue()
 	return self.Value
 end
 
+-- Restores the value the element was created with (right-click a row).
+function Element:Reset()
+	local default = self.Default
+	if self.Type == "ColorPicker" then
+		self:SetRainbow(false)
+		self:SetValue(default[1], default[2])
+	elseif self.Type == "Keybind" then
+		self:SetValue(default[1], default[2])
+	elseif self.Type == "Dropdown" and self.Multi then
+		self:SetValue(table.clone(default))
+	else
+		self:SetValue(default)
+	end
+end
+
+local function AttachReset(element, gui)
+	local function Open()
+		element.Window:_Menu().Open(gui, {
+			{
+				Text = "Reset to default",
+				Callback = function()
+					element:Reset()
+				end,
+			},
+		}, { Width = 150, Clip = element.Section.Column })
+	end
+	if gui:IsA("GuiButton") then
+		gui.MouseButton2Click:Connect(Open)
+	else
+		gui.InputBegan:Connect(function(input)
+			if input.UserInputType == MB2 then
+				Open()
+			end
+		end)
+	end
+end
+
 function Element:Destroy()
 	self.Destroyed = true
 	if self.Flag and Library.Options[self.Flag] == self then
@@ -3278,9 +3607,11 @@ function Section:AddToggle(flag, options)
 	flag, options, title = Args(flag, options)
 	local toggle = self:_Element(Toggle, "Toggle", flag, options, title, true)
 	toggle.Value = options.Default == true
+	toggle.Default = toggle.Value
 
 	local holder, label = self:_TitleRow(title, options, 44, true)
 	toggle.Holder, toggle._title = holder, label
+	AttachReset(toggle, holder)
 
 	local switch = Create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
@@ -3575,6 +3906,8 @@ function Section:AddSlider(flag, options)
 			end
 		end)
 	end)
+	slider.Default = slider.Value
+	AttachReset(slider, hit)
 	hit.MouseEnter:Connect(function()
 		Tween(slider._title, { TextColor3 = Library.Theme.Text })
 	end)
@@ -3709,6 +4042,8 @@ function Section:AddInput(flag, options)
 		Parent = holder,
 	})
 	local stroke = box:FindFirstChildOfClass("UIStroke")
+	input.Default = input.Value
+	AttachReset(input, box)
 	input._box = Create("TextBox", {
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -24, 1, 0),
@@ -3909,6 +4244,8 @@ function Section:AddDropdown(flag, options)
 		end
 		dropdown:SetValue(default, true)
 	end
+	dropdown.Default = dropdown.Multi and table.clone(dropdown.Value) or dropdown.Value
+	AttachReset(dropdown, box)
 	dropdown:_Display()
 	self:_Register(dropdown)
 	RegisterOption(dropdown)
@@ -4114,6 +4451,8 @@ local function NewColorPicker(section, parent, flag, options, title)
 		Parent = parent,
 	})
 	picker._swatch = swatch
+	picker.Default = { color, picker.Transparency }
+	AttachReset(picker, swatch)
 	swatch.Activated:Connect(function()
 		local popup = picker.Window:_ColorPopup()
 		if Popup.IsOpen(popup.Frame, swatch) then
@@ -4133,6 +4472,7 @@ function Section:AddColorPicker(flag, options)
 	local holder, label, slot = self:_TitleRow(title, options, 0)
 	local picker = NewColorPicker(self, slot, flag, options, title)
 	picker.Holder, picker._title = holder, label
+	AttachReset(picker, holder)
 	FitTitle(label, slot, 0)
 	AttachTooltip(holder, picker)
 	self:_Register(picker)
@@ -4222,6 +4562,7 @@ local function NewKeybind(section, parent, flag, options, title)
 	keybind.ChangedCallback = options.ChangedCallback
 	keybind.Internal = options.Internal == true
 	keybind.ModeLocked = options.ModeLocked == true or keybind.Internal
+	keybind.Default = { keybind.Value, keybind.Mode }
 
 	local button = Create("TextButton", {
 		Size = UDim2.fromOffset(0, 20),
@@ -4283,6 +4624,9 @@ function Section:AddKeybind(flag, options)
 	local holder, label, slot = self:_TitleRow(title, options, 0)
 	local keybind = NewKeybind(self, slot, flag, options, title)
 	keybind.Holder, keybind._title = holder, label
+	if not keybind.Internal then
+		AttachReset(keybind, holder)
+	end
 	FitTitle(label, slot, 0)
 	AttachTooltip(holder, keybind)
 	self:_Register(keybind)
@@ -5398,8 +5742,21 @@ function Library:_SaveSettings()
 			Scale = self._savedScale and self.Scale or nil,
 			Animations = self.Animations,
 			Textures = self.Textures,
+			Effect = self.Effect,
+			EffectAmount = self.EffectAmount,
+			EffectSpeed = self.EffectSpeed,
+			EffectColorMode = self.EffectColorMode,
+			EffectColor = Util.ToHex(self.EffectColor),
+			EffectFront = self.EffectFront,
 			MenuKey = self.MenuKey,
 			Keybinds = self.ShowKeybinds,
+			Window = self.Window.Root and {
+				X = self.Window.Root.Position.X.Offset,
+				Y = self.Window.Root.Position.Y.Offset,
+				W = self.Window.Root.Size.X.Offset,
+				H = self.Window.Root.Size.Y.Offset,
+			} or nil,
+			Tab = self._lastTab,
 			HideIdentity = self.HideIdentity,
 			NotifySide = self.NotifySide,
 			AutoSave = self.AutoSave,
@@ -5439,11 +5796,33 @@ function Library:_LoadSettings()
 	if type(data.Textures) == "boolean" then
 		self.Textures = data.Textures
 	end
+	if table.find(EffectKinds, data.Effect) then
+		self.Effect = data.Effect
+	end
+	if type(data.EffectAmount) == "number" then
+		self.EffectAmount = math.clamp(data.EffectAmount, 1, 150)
+	end
+	if type(data.EffectSpeed) == "number" then
+		self.EffectSpeed = math.clamp(data.EffectSpeed, 0.1, 5)
+	end
+	if table.find(EffectColorModes, data.EffectColorMode) then
+		self.EffectColorMode = data.EffectColorMode
+	end
+	self.EffectColor = Util.FromHex(data.EffectColor) or self.EffectColor
+	if type(data.EffectFront) == "boolean" then
+		self.EffectFront = data.EffectFront
+	end
 	if type(data.MenuKey) == "string" then
 		self.MenuKey = data.MenuKey
 	end
 	if type(data.Keybinds) == "boolean" then
 		self.ShowKeybinds = data.Keybinds
+	end
+	if type(data.Window) == "table" then
+		self._savedWindow = data.Window
+	end
+	if type(data.Tab) == "string" then
+		self._lastTab = data.Tab
 	end
 	if type(data.HideIdentity) == "boolean" then
 		self.HideIdentity = data.HideIdentity
@@ -5910,6 +6289,70 @@ function Window:_BuildSettings(options)
 		Callback = function(value)
 			Library.Animations = value
 			Library:_SaveSettings()
+		end,
+	})
+
+	local effects = themeTab:AddSection({ Title = "Background Effects", Side = "Left" })
+	effects:AddDropdown({
+		Title = "Particles",
+		Values = EffectKinds,
+		Default = Library.Effect,
+		Save = false,
+		Searchable = false,
+		Callback = function(value)
+			Library:SetEffect(value or "None")
+		end,
+	})
+	effects:AddToggle({
+		Title = "Draw Over Panels",
+		Default = Library.EffectFront,
+		Save = false,
+		Description = "Off keeps particles in the background gaps only.",
+		Callback = function(value)
+			Library:SetEffect(nil, { OverPanels = value })
+		end,
+	})
+	effects:AddDropdown({
+		Title = "Particle Color",
+		Values = EffectColorModes,
+		Default = Library.EffectColorMode,
+		Save = false,
+		Searchable = false,
+		Tooltip = "Natural: each effect's own color. Theme: follows the accent. Custom: the picker below.",
+		Callback = function(value)
+			Library:SetEffect(nil, { ColorMode = value })
+		end,
+	})
+	effects:AddColorPicker({
+		Title = "Custom Color",
+		Default = Library.EffectColor,
+		Save = false,
+		Callback = function(color)
+			Library:SetEffect(nil, { Color = color })
+		end,
+	})
+	effects:AddSlider({
+		Title = "Amount",
+		Min = 5,
+		Max = 120,
+		Default = Library.EffectAmount,
+		Save = false,
+		CallbackOnRelease = true,
+		Callback = function(value)
+			Library:SetEffect(nil, { Amount = value })
+		end,
+	})
+	effects:AddSlider({
+		Title = "Speed",
+		Min = 25,
+		Max = 300,
+		Increment = 5,
+		Default = math.floor(Library.EffectSpeed * 100 + 0.5),
+		Suffix = "%",
+		Save = false,
+		CallbackOnRelease = true,
+		Callback = function(value)
+			Library:SetEffect(nil, { Speed = value / 100 })
 		end,
 	})
 
