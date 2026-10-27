@@ -1,13 +1,10 @@
 --[[
-	MyUI 2 example: recreates the "Grand Piece Online" reference layout with
-	the peeking mascot. Click her to make her blush, hold to pat her, and don't
-	poke her too many times. Game logic is placeholder - wire the callbacks to
-	your own functions.
-]]
+	MyUI 2 example: a small tour of every element. Replace the cards with your
+	own features; the callbacks below only show how values come back to you.
 
--- Change these per game.
-local HubName = "XX" -- shown as "by XX" under the title
-local GameName = "Grand Piece Online" -- the big title; nil = detect the game's name
+	Click the girl on the header to make her blush, hold the mouse on her to
+	pat her, and leave her alone for a while to watch her doze off.
+]]
 
 local LIBRARY_URL = "https://raw.githubusercontent.com/dreams7906/MyUI/claude/cool-hawking-qhmbhp/MyUI2.lua"
 
@@ -24,31 +21,66 @@ end
 local Options = Library.Options
 
 local Window = Library:CreateWindow({
-	Title = GameName,
-	Author = HubName,
+	Title = "Example",
+	Author = "XX", -- shown as "by XX"
 	Badge = "DEV",
-	Version = "v2.4",
+	Version = "v1.0",
+	Icon = "sparkles", -- any icon name from the sheet (Lucide names)
 	Theme = "Dark", -- "Dark" or "Light"; the moon button in the header switches live
 	ToggleKey = Enum.KeyCode.RightShift,
-	ConfigFolder = "XX/" .. string.gsub(GameName or tostring(game.PlaceId), "%W", ""),
-	LoadingTime = 3.5,
-	Size = UDim2.fromOffset(900, 560),
+	ConfigFolder = "XX/Example",
 })
 
 local GREEN = Color3.fromRGB(46, 196, 110)
-local ORANGE = Color3.fromRGB(245, 120, 40)
+local ORANGE = Color3.fromRGB(245, 140, 40)
 local TEAL = Color3.fromRGB(38, 172, 196)
 local PURPLE = Color3.fromRGB(132, 92, 236)
-local RED = Color3.fromRGB(232, 72, 86)
 local PINK = Color3.fromRGB(240, 96, 150)
+local RED = Color3.fromRGB(232, 72, 86)
 
 --------------------------------------------------------------------------------
--- Main: a tour of every element type
+-- Main: one card per kind of element. Pills filter the cards.
 --------------------------------------------------------------------------------
-local Main = Window:AddTab({ Title = "Main", Icon = "home" })
+local Main = Window:AddTab({ Title = "Main", Icon = "house" })
+local Basics = Main:AddSubTab("Basics")
+local Inputs = Main:AddSubTab("Inputs")
+local Pickers = Main:AddSubTab("Pickers")
 
-local Player = Main:AddSection({ Title = "Player", Icon = "user", Color = PINK, Side = 1 })
-Player:AddSlider("WalkSpeed", {
+local Toggles = Basics:AddSection({ Title = "Toggles", Icon = "toggle-right", Color = GREEN, Side = 1 })
+local ToggleStatus = Toggles:AddLabel("Example Toggle: Off")
+Toggles:AddToggle("ExampleToggle", {
+	Title = "Example Toggle",
+	Callback = function(value)
+		ToggleStatus:SetText("Example Toggle: " .. (value and "On" or "Off"))
+	end,
+})
+Toggles:AddToggle("WithKeybind", { Title = "With A Keybind" }):AddKeybind("WithKeybindKey", { Default = Enum.KeyCode.F })
+Toggles:AddToggle("WithColor", { Title = "With A Color", Default = true }):AddColorPicker("WithColorValue", {
+	Default = Color3.fromRGB(118, 168, 255),
+})
+
+local Buttons = Basics:AddSection({ Title = "Buttons", Icon = "mouse-pointer-click", Color = ORANGE, Side = 2 })
+Buttons:AddButton({
+	Title = "Notify",
+	Callback = function()
+		Library:Notify({ Title = "Hello", Content = "This is a notification.", Type = "Success" })
+	end,
+}):AddButton({
+	Title = "Talk",
+	Callback = function()
+		Window:Say("You pressed a button just to see me? Ehehe~", nil, "Blush")
+	end,
+})
+Buttons:AddButton({
+	Title = "Confirm Me",
+	Confirm = true, -- asks for a second click
+	Callback = function()
+		Library:Notify({ Title = "Confirmed", Content = "You clicked twice.", Type = "Info" })
+	end,
+})
+
+local Sliders = Inputs:AddSection({ Title = "Sliders", Icon = "sliders-horizontal", Color = PURPLE, Side = 1 })
+Sliders:AddSlider("WalkSpeed", {
 	Title = "Walk Speed",
 	Min = 16,
 	Max = 200,
@@ -61,138 +93,106 @@ Player:AddSlider("WalkSpeed", {
 		end
 	end,
 })
-Player:AddSlider("JumpPower", { Title = "Jump Power", Min = 50, Max = 300, Default = 50 })
-Player:AddToggle("InfiniteStamina", { Title = "Infinite Stamina" })
-Player:AddKeybind("Dash", { Title = "Dash", Default = Enum.KeyCode.Q })
+Sliders:AddSlider("ExampleRange", { Title = "Example Range", Min = 0, Max = 100, Default = 50, Suffix = "%" })
+Sliders:AddSlider("Precision", { Title = "Precision", Min = 0, Max = 1, Default = 0.5, Increment = 0.05 })
 
-local Tools = Main:AddSection({ Title = "Tools", Icon = "zap", Color = ORANGE, Side = 2 })
-Tools:AddDropdown("Weapon", { Title = "Weapon", Values = { "Katana", "Flintlock", "Cannon", "Bisento" }, Default = "Katana" })
-Tools:AddDropdown("Islands", {
-	Title = "Islands",
-	Values = { "Sandora", "Roca", "Orange Town", "Shells Town", "Baratie", "Fishman Island", "Marineford", "Loguetown" },
-	Multi = true,
-	Default = { "Sandora", "Roca" },
-})
-Tools:AddColorPicker("HighlightColor", { Title = "Highlight", Default = Color3.fromRGB(66, 133, 244) })
-Tools:AddButton({
-	Title = "Notify",
+local Text = Inputs:AddSection({ Title = "Text", Icon = "type", Color = TEAL, Side = 2 })
+Text:AddInput("ExampleText", { Title = "Text", Placeholder = "Type anything" })
+Text:AddInput("ExampleNumber", { Title = "Number", Default = 10, Numeric = true, Min = 0, Max = 100 })
+
+local Dropdowns = Pickers:AddSection({ Title = "Dropdowns", Icon = "list", Color = PINK, Side = 1 })
+Dropdowns:AddDropdown("SingleChoice", { Title = "Single", Values = { "Option A", "Option B", "Option C" }, Default = "Option A" })
+local many = {}
+for index = 1, 24 do
+	table.insert(many, "Item " .. index)
+end
+Dropdowns:AddDropdown("MultiChoice", { Title = "Multi + Search", Values = many, Multi = true, Default = { "Item 1", "Item 2" } })
+
+local Colors = Pickers:AddSection({ Title = "Colors And Keys", Icon = "palette", Color = RED, Side = 2 })
+Colors:AddColorPicker("ExampleColor", { Title = "Color", Default = Color3.fromRGB(66, 133, 244) })
+Colors:AddKeybind("ExampleKey", {
+	Title = "Keybind",
+	Default = Enum.KeyCode.G,
 	Callback = function()
-		Library:Notify({ Title = "Hello", Content = "This is a notification.", Type = "Success" })
-	end,
-}):AddButton({
-	Title = "Talk",
-	Callback = function()
-		Window:Say("H-hi! You pressed a button just to see me?", nil, "Blush")
+		Library:Notify({ Title = "Keybind", Content = "You pressed the example key.", Type = "Info" })
 	end,
 })
 
+-- A card made from the tab itself shows under every pill.
 local Info = Main:AddSection({ Title = "Info", Icon = "info", Color = PURPLE, Side = 3 })
 Info:AddParagraph({
-	Title = "Welcome back",
-	Content = "Right-click any row to reset it. Use the search button to filter a tab. "
+	Title = "Welcome",
+	Content = "Right-click any row to reset it. The search button filters this tab. "
 		.. "Configs, theme and mascot options live in Settings.",
 })
-local Status = Info:AddLabel("Session started")
+local Status = Info:AddLabel("Single: Option A")
 
---------------------------------------------------------------------------------
--- Farm: mirrors the reference screenshot
---------------------------------------------------------------------------------
-local Farm = Window:AddTab({ Title = "Farm", Icon = "bike" })
-local Baal = Farm:AddSubTab("Ba'al")
-local Level = Farm:AddSubTab("Level")
-local Fishing = Farm:AddSubTab("Fishing")
-local Kraken = Farm:AddSubTab("Kraken")
-local Halloween = Farm:AddSubTab("Halloween")
-local Bosses = Farm:AddSubTab("Bosses")
-local Events = Farm:AddSubTab("Events")
-
-local LevelFarm = Level:AddSection({ Title = "Level Farm", Icon = "star", Color = GREEN, Side = 1 })
-local LevelStatus = LevelFarm:AddLabel("Level Farm: Disabled")
-LevelFarm:AddToggle("LevelFarm", {
-	Title = "Level Farm",
-	Callback = function(value)
-		LevelStatus:SetText("Level Farm: " .. (value and "Enabled" or "Disabled"))
-	end,
-}):AddKeybind("LevelFarmKey", { Default = Enum.KeyCode.F })
-LevelFarm:AddToggle("BuyGeppo", { Title = "Buy Geppo", Default = true })
-LevelFarm:AddToggle("GetHakiV1", { Title = "Get Haki V1", Default = true })
-
-local HalloweenFarm = Halloween:AddSection({ Title = "Halloween Farm", Icon = "pumpkin", Color = ORANGE, Side = 1 })
-HalloweenFarm:AddToggle("HalloweenFarm", { Title = "Halloween Farm" })
-HalloweenFarm:AddToggle("UpgradeBasket", { Title = "Upgrade Basket", Default = true })
-HalloweenFarm:AddToggle("BuyOnMax", { Title = "Buy On Max" })
-HalloweenFarm:AddToggle("HalloweenSpawn", { Title = "Auto Set Spawn", Default = true })
-HalloweenFarm:AddToggle("PeliChests", { Title = "Collect Peli Chests", Default = true })
-HalloweenFarm:AddToggle("OtherSides", { Title = "Other Sides", Default = true })
-HalloweenFarm:AddInput("HalloweenWebhook", { Title = "Webhook", Placeholder = "Discord webhook URL" })
-
-local FishingFarm = Fishing:AddSection({ Title = "Fishing", Icon = "fish", Color = TEAL, Side = 2 })
-FishingFarm:AddLabel("Notifications: No messages")
-local FishStatus = FishingFarm:AddLabel("Fish Farm: Disabled")
-FishingFarm:AddToggle("FishFarm", {
-	Title = "Fish Farm",
-	Callback = function(value)
-		FishStatus:SetText("Fish Farm: " .. (value and "Enabled" or "Disabled"))
-	end,
-})
-FishingFarm:AddToggle("FishBelowPlayer", { Title = "Fish Below Player" })
-FishingFarm:AddToggle("LevelBelow375", { Title = "Level Farm Below 375" })
-FishingFarm:AddToggle("AutoMerchant", { Title = "Auto Merchant" })
-FishingFarm:AddToggle("FishStoreFruit", { Title = "Auto Store Fruit", Default = true })
-FishingFarm:AddToggle("FishSpawn", { Title = "Auto Set Spawn" })
-FishingFarm:AddToggle("FishingTitle", { Title = "Auto Equip Fishing Title" })
-FishingFarm:AddInput("BaitAmount", { Title = "Common Bait Amount", Default = 300, Numeric = true, Min = 0 })
-FishingFarm:AddInput("MerchantWebhook", { Title = "Merchant Webhook", Placeholder = "Discord webhook URL" })
-FishingFarm:AddInput("FishFruitWebhook", { Title = "Fruit Webhook", Placeholder = "Uses Merchant Webhook" })
-FishingFarm:AddDropdown("FishBait", {
-	Title = "Selected Fish Bait",
-	Values = { "Common", "Uncommon", "Rare", "Legendary", "Golden" },
-	Multi = true,
-	Default = { "Common", "Uncommon", "Rare" },
-})
-
-local KrakenFarm = Kraken:AddSection({ Title = "Kraken Farm", Icon = "kraken", Color = PURPLE, Side = 3 })
-KrakenFarm:AddToggle("KrakenFarm", { Title = "Kraken Farm" })
-KrakenFarm:AddToggle("KrakenStoreFruit", { Title = "Auto Store Fruit", Default = true })
-KrakenFarm:AddToggle("KrakenSpawn", { Title = "Auto Set Spawn" })
-KrakenFarm:AddInput("KrakenWebhook", { Title = "Fruit Webhook", Placeholder = "Discord webhook URL" })
-KrakenFarm:AddInput("AnchorAccount", { Title = "Anchor account", Placeholder = "Party owner's exact name" })
-KrakenFarm:AddInput("KrakenCount", { Title = "Kraken Count", Default = 3, Numeric = true, Min = 1, Max = 50 })
-KrakenFarm:AddToggle("PauseForConfig", { Title = "Pause for Config" })
-KrakenFarm:AddToggle("KillAttacks", { Title = "Kill Attacks", Default = true })
-KrakenFarm:AddToggle("AnchorAttacks", { Title = "Anchor Attacks", Default = true })
-KrakenFarm:AddDropdown("AccountType", { Title = "Account Type", Values = { "Kill", "Solo", "Anchor" }, Default = "Kill" })
-KrakenFarm:AddLabel("Solo and Kill Only will be integrated soon.")
-KrakenFarm:AddLabel("Kraken Farm: Disabled")
-
-local BaalFarm = Baal:AddSection({ Title = "Ba'al", Icon = "flag", Color = RED, Side = 2 })
-BaalFarm:AddToggle("BaalFarm", { Title = "Ba'al Farm" })
-BaalFarm:AddToggle("BaalHop", { Title = "Server Hop When Dead" })
-local BossSection = Bosses:AddSection({ Title = "Bosses", Icon = "sword", Color = RED, Side = 1 })
-BossSection:AddDropdown("BossTarget", { Title = "Target", Values = { "Logia Lord", "Sea King", "Marine Admiral" } })
-BossSection:AddToggle("BossFarm", { Title = "Boss Farm" })
-local EventSection = Events:AddSection({ Title = "Events", Icon = "sparkle", Color = PINK, Side = 3 })
-EventSection:AddToggle("EventNotify", { Title = "Notify On Event" })
-
---------------------------------------------------------------------------------
--- ESP and World
---------------------------------------------------------------------------------
-local ESP = Window:AddTab({ Title = "ESP", Icon = "eye" })
-local Visuals = ESP:AddSection({ Title = "Visuals", Icon = "eye", Color = TEAL, Side = 1 })
-Visuals:AddToggle("PlayerESP", { Title = "Players" }):AddColorPicker("PlayerESPColor", { Default = Color3.fromRGB(118, 168, 255) })
-Visuals:AddToggle("ChestESP", { Title = "Chests" }):AddColorPicker("ChestESPColor", { Default = Color3.fromRGB(245, 180, 60) })
-Visuals:AddToggle("FruitESP", { Title = "Devil Fruits" }):AddColorPicker("FruitESPColor", { Default = PINK })
-local ESPOptions = ESP:AddSection({ Title = "Options", Icon = "sliders", Color = PURPLE, Side = 2 })
-ESPOptions:AddSlider("ESPDistance", { Title = "Max Distance", Min = 100, Max = 5000, Default = 1500, Increment = 50 })
-ESPOptions:AddToggle("ESPNames", { Title = "Show Names", Default = true })
-
-local World = Window:AddTab({ Title = "World", Icon = "globe" })
-local Lighting = World:AddSection({ Title = "Lighting", Icon = "sun", Color = ORANGE, Side = 1 })
-Lighting:AddToggle("FullBright", { Title = "Full Bright" })
-Lighting:AddSlider("ClockTime", { Title = "Time Of Day", Min = 0, Max = 24, Default = 14, Increment = 0.5 })
-local Movement = World:AddSection({ Title = "Movement", Icon = "compass", Color = GREEN, Side = 2 })
-Movement:AddToggle("Noclip", { Title = "Noclip" }):AddKeybind("NoclipKey", { Default = Enum.KeyCode.N, Mode = "Hold" })
-
-Options.AccountType:OnChanged(function(value)
-	Status:SetText("Account type: " .. tostring(value))
+Options.SingleChoice:OnChanged(function(value)
+	Status:SetText("Single: " .. tostring(value))
 end)
+
+--------------------------------------------------------------------------------
+-- Mascot: play with her moods and emotes
+--------------------------------------------------------------------------------
+local MascotTab = Window:AddTab({ Title = "Mascot", Icon = "heart" })
+
+local Moods = MascotTab:AddSection({ Title = "Moods", Icon = "smile", Color = PINK, Side = 1 })
+Moods:AddDropdown("MascotMood", {
+	Title = "Mood",
+	Values = { "Idle", "Smile", "Happy", "Blush", "Pat", "Flustered", "Surprised", "Pout", "Sleepy", "Wink" },
+	Default = "Idle",
+	Save = false,
+	Callback = function(mood)
+		if Window.Mascot then
+			Window.Mascot:SetMood(mood)
+		end
+	end,
+})
+Moods:AddButton({
+	Title = "Hop",
+	Callback = function()
+		if Window.Mascot then
+			Window.Mascot:Hop()
+		end
+	end,
+}):AddButton({
+	Title = "Hide",
+	Callback = function()
+		if Window.Mascot then
+			Window.Mascot:Hide()
+		end
+	end,
+}):AddButton({
+	Title = "Peek",
+	Callback = function()
+		if Window.Mascot then
+			Window.Mascot:Peek()
+		end
+	end,
+})
+
+local Emotes = MascotTab:AddSection({ Title = "Emotes", Icon = "sparkles", Color = ORANGE, Side = 2 })
+for _, emote in { "Hearts", "Sparkles", "Shock", "Sweat", "Sleep" } do
+	Emotes:AddButton({
+		Title = emote,
+		Callback = function()
+			if Window.Mascot then
+				Window.Mascot:Emote(emote)
+			end
+		end,
+	})
+end
+
+local Speech = MascotTab:AddSection({ Title = "Speech", Icon = "message-circle", Color = TEAL, Side = 3 })
+Speech:AddInput("MascotLine", {
+	Title = "Say",
+	Placeholder = "Type a line, press Enter",
+	Finished = true,
+	Save = false,
+	Callback = function(text)
+		if text ~= "" then
+			Window:Say(text, nil, "Smile")
+		end
+	end,
+})
+Speech:AddLabel("Mascot: Hiyori Momose (c) Live2D Inc.", { Style = "Plain" })

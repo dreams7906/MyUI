@@ -4,13 +4,18 @@
 	https://github.com/dreams7906/MyUI
 
 	    local Library = loadstring(game:HttpGet(
-	        "https://raw.githubusercontent.com/dreams7906/MyUI/main/MyUI2.lua"
+	        "https://raw.githubusercontent.com/dreams7906/MyUI/claude/cool-hawking-qhmbhp/MyUI2.lua"
 	    ))()
 
 	A blue header band with tabs, pill filters, three columns of cards, a
-	light and a dark theme, and a peeking chibi mascot who blushes and talks
-	when you click her. Everything (icons, mascot, color wheel) is drawn from
-	plain GuiObjects; no uploaded images are needed. See README.md.
+	light and a dark theme, and Hiyori (Live2D's sample character) peeking
+	over the panel; she blinks, follows your cursor, blushes and talks when
+	you click her. Icons are Lucide (via Iconify). The icon and character
+	sheets are downloaded from the repo's assets folder on first run.
+	See MyUI2.md.
+
+	Hiyori Momose (c) Live2D Inc., used under the Live2D Free Material License:
+	https://www.live2d.com/eula/live2d-free-material-license-agreement_en.html
 ]]
 
 local cloneref = cloneref or function(instance)
@@ -65,6 +70,12 @@ local Library = {
 	MascotSpeech = true,
 	MascotFollow = true,
 	MascotReactions = true,
+
+	-- Where the icon and mascot sheets are downloaded from. `Assets` can hold
+	-- uploaded copies ({ Icons = "rbxassetid://...", Mascot = "rbxassetid://..." })
+	-- or be set to false to skip downloads.
+	AssetUrl = "https://raw.githubusercontent.com/dreams7906/MyUI/claude/cool-hawking-qhmbhp/assets/",
+	Assets = {} :: any,
 
 	Connections = {},
 	_pending = {},
@@ -315,6 +326,138 @@ function File.ListJson(folder)
 end
 
 --------------------------------------------------------------------------------
+-- Image assets: the icon sheet (Lucide and friends, packed from Iconify) and the
+-- mascot's sprite sheet. Both live in this repo's assets folder; they are
+-- downloaded once into MyUI2/assets and shown with getcustomasset. Uploaded
+-- copies work too:
+--     Library.Assets = { Icons = "rbxassetid://...", Mascot = "rbxassetid://..." }
+-- Without either, icons fall back to the drawn set and the mascot stays away.
+--------------------------------------------------------------------------------
+
+local ASSET_FOLDER = "MyUI2/assets"
+local GetCustomAsset = getcustomasset or getsynasset
+
+local Assets: any = { IconsTried = false }
+
+local function AssetOverrides()
+	return type(Library.Assets) == "table" and Library.Assets or {}
+end
+
+local function Download(name)
+	if Library.Assets == false then
+		return nil
+	end
+	local ok, body = pcall(function()
+		return (game :: any):HttpGet(Library.AssetUrl .. name)
+	end)
+	if ok and type(body) == "string" and #body > 0 and string.sub(body, 1, 3) ~= "404" then
+		return body
+	end
+	return nil
+end
+
+-- Content id for a cached copy of `name` (versioned so a new sheet never shows
+-- a stale texture), downloading it when it isn't cached yet.
+local function CachedImage(name, version)
+	if not (HasFS and GetCustomAsset) then
+		return nil
+	end
+	local path = ASSET_FOLDER .. "/" .. string.gsub(name, "%.png$", "") .. "-" .. version .. ".png"
+	if not File.Exists(path) then
+		local body = Download(name)
+		if not body or string.sub(body, 1, 4) ~= "\137PNG" then
+			return nil
+		end
+		File.MakeFolder(ASSET_FOLDER)
+		if not File.Write(path, body) then
+			return nil
+		end
+	end
+	local ok, id = pcall(GetCustomAsset, path)
+	return ok and type(id) == "string" and id ~= "" and id or nil
+end
+
+-- Loads the icon manifest (fresh when online, cached otherwise) and the sheet.
+function Assets.LoadIcons()
+	if Assets.IconsTried then
+		return Assets.IconSheet
+	end
+	Assets.IconsTried = true
+	local cache = ASSET_FOLDER .. "/icons.json"
+	local text = Download("icons.json")
+	if text and string.sub(text, 1, 1) == "{" then
+		File.MakeFolder(ASSET_FOLDER)
+		File.Write(cache, text)
+	else
+		text = File.Read(cache)
+	end
+	if not text then
+		return nil
+	end
+	local ok, manifest = pcall(HttpService.JSONDecode, HttpService, text)
+	if not ok or type(manifest) ~= "table" or type(manifest.icons) ~= "table" then
+		return nil
+	end
+	local image = AssetOverrides().Icons or CachedImage("icons.png", tostring(manifest.version))
+	if not image then
+		return nil
+	end
+	Assets.IconSheet = {
+		Image = image,
+		Size = Vector2.new(manifest.size, manifest.size),
+		Pad = manifest.pad,
+		Pitch = manifest.pitch,
+		Columns = manifest.columns,
+		Icons = manifest.icons,
+		Aliases = type(manifest.aliases) == "table" and manifest.aliases or {},
+	}
+	return Assets.IconSheet
+end
+
+-- Top-left corner of a named icon in the sheet, or nil.
+function Assets.IconOffset(name)
+	local sheet = Assets.IconSheet
+	if not sheet or type(name) ~= "string" then
+		return nil
+	end
+	local key = string.lower(name)
+	if string.sub(key, 1, 7) == "lucide:" then
+		key = string.sub(key, 8)
+	end
+	local index = sheet.Icons[sheet.Aliases[key] or key]
+	if type(index) ~= "number" then
+		return nil
+	end
+	return Vector2.new(index % sheet.Columns * sheet.Pitch + sheet.Pad, math.floor(index / sheet.Columns) * sheet.Pitch + sheet.Pad)
+end
+
+-- Fetches the mascot sheet in the background and hands its content id to
+-- every waiting callback (or nil if it can't be loaded).
+local MASCOT_SHEET_VERSION = "1"
+
+function Assets.WithMascot(callback)
+	if Assets.MascotState == "ready" or Assets.MascotState == "failed" then
+		task.spawn(callback, Assets.MascotImage)
+		return
+	end
+	Assets.MascotWaiting = Assets.MascotWaiting or {}
+	table.insert(Assets.MascotWaiting, callback)
+	if Assets.MascotState == "loading" then
+		return
+	end
+	Assets.MascotState = "loading"
+	task.spawn(function()
+		local image = AssetOverrides().Mascot or CachedImage("hiyori.png", MASCOT_SHEET_VERSION)
+		Assets.MascotImage = image
+		Assets.MascotState = image and "ready" or "failed"
+		local waiting = Assets.MascotWaiting
+		Assets.MascotWaiting = nil
+		for _, waiter in waiting do
+			task.spawn(waiter, image)
+		end
+	end)
+end
+
 --------------------------------------------------------------------------------
 -- Theme: one light and one dark palette
 --------------------------------------------------------------------------------
@@ -993,18 +1136,80 @@ Icons.sparkle = function(p)
 	p:Circle(12, 12, 2.2, true)
 end
 
+-- Lucide names for the drawn icons, used when the icon sheet can't be loaded.
+local DrawnAliases = {
+	house = "home",
+	settings = "gear",
+	["settings-2"] = "gear",
+	["layout-grid"] = "grid",
+	["layout-dashboard"] = "grid",
+	["sliders-horizontal"] = "sliders",
+	["sliders-vertical"] = "sliders",
+	["triangle-alert"] = "alert",
+	["circle-alert"] = "alert",
+	warning = "alert",
+	ellipsis = "dots",
+	["chevrons-up-down"] = "updown",
+	["chevron-down"] = "chevron",
+	["grip-vertical"] = "grip",
+	sparkles = "sparkle",
+	["heart-filled"] = "heart",
+	["star-filled"] = "star",
+	swords = "sword",
+	earth = "globe",
+	["scan-eye"] = "scan",
+	["eye-off"] = "eye",
+	["save-all"] = "save",
+	["folder-open"] = "folder",
+	["list-checks"] = "list",
+	["circle-check"] = "check",
+	success = "check",
+	["circle-x"] = "x",
+	error = "x",
+	["circle-plus"] = "plus",
+	["circle-minus"] = "minus",
+	["code-xml"] = "code",
+	locate = "crosshair",
+	["locate-fixed"] = "crosshair",
+	help = "info",
+	["circle-help"] = "info",
+}
+
 local function StrokeFor(size)
 	return math.clamp(math.floor(size / 11 * 2 + 0.5) / 2, 1, 3)
 end
 
--- Builds an icon from a built-in name, an asset id ("rbxassetid://..." or a
--- number) or a short text glyph. Returns { Frame, Parts } for recoloring.
+-- Builds an icon from the icon sheet (any packed Lucide/Iconify name), a drawn
+-- fallback, an asset id ("rbxassetid://..." or a number) or a short text
+-- glyph. Returns { Frame, Parts } for recoloring.
 local function BuildIcon(name, size, color, maskColor)
 	color = color or WHITE
 	local frame = Create("Frame", { Size = UDim2.fromOffset(size, size), BackgroundTransparency = 1 })
 	local icon = { Frame = frame, Parts = {}, Masks = {}, Color = color }
-	local builder = type(name) == "string" and Icons[string.lower(name)]
-	if builder then
+	if not Assets.IconsTried and coroutine.isyieldable() then
+		Assets.LoadIcons()
+	end
+	local offset = Assets.IconOffset(name)
+	local builder
+	if not offset and type(name) == "string" and not string.find(name, "rbxasset") and not string.match(name, "^%d+$") then
+		local key = string.lower(name)
+		key = string.match(key, "^[%w%-]+:(.+)$") or key
+		builder = Icons[key] or Icons[DrawnAliases[key] or ""]
+		if not builder and #key > 2 then
+			builder = Icons.grid -- unknown name while the sheet is unavailable
+		end
+	end
+	if offset then
+		local image = Create("ImageLabel", {
+			Size = UDim2.fromScale(1, 1),
+			Image = Assets.IconSheet.Image,
+			ImageRectOffset = offset,
+			ImageRectSize = Assets.IconSheet.Size,
+			ImageColor3 = color,
+			Parent = frame,
+		})
+		table.insert(icon.Parts, { image, "ImageColor3" })
+	elseif builder then
 		builder(setmetatable({
 			Frame = frame,
 			Parts = icon.Parts,
@@ -1749,272 +1954,259 @@ end
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
--- Mascot: an original chibi girl drawn from rounded frames. She peeks over an
--- edge: her head lives in one layer (drawn *behind* whatever covers the area
--- under the edge) and her hands in another layer drawn *in front* of it.
+-- Mascot: Hiyori Momose, Live2D's sample character, pre-rendered from her
+-- Live2D model into a 5x5 sprite sheet: six gaze directions, their blinks and
+-- a set of expressions. She peeks over an edge: the sheet sits in a layer drawn
+-- *behind* whatever covers the area under the edge, and her little emotes
+-- (hearts, sparkles...) float in a layer drawn in front of it.
 --------------------------------------------------------------------------------
 
-local MascotColors = {
-	Hair = rgb(34, 31, 43),
-	HairShine = rgb(92, 86, 118),
-	Skin = rgb(255, 231, 218),
-	Line = rgb(66, 44, 50),
-	Iris = rgb(56, 172, 146),
-	IrisDark = rgb(22, 94, 82),
-	IrisLight = rgb(150, 232, 210),
-	Blush = rgb(255, 132, 154),
-	BlushLine = rgb(236, 92, 118),
-	Mouth = rgb(176, 66, 82),
-	Tongue = rgb(255, 150, 160),
-	Sweat = rgb(160, 214, 255),
-	Ribbon = rgb(255, 108, 146),
-	RibbonDark = rgb(214, 70, 112),
+local MASCOT_CELL = 204 -- pixels per frame in the sheet
+local MASCOT_COLUMNS = 5
+local MASCOT_EDGE = 0.79 -- share of a frame above the edge (top of her hair down to her collar)
+
+local MascotFrames = {
+	GazeL = 0, GazeC = 1, GazeR = 2, GazeDL = 3, GazeD = 4, GazeDR = 5,
+	BlinkL = 6, BlinkC = 7, BlinkR = 8, BlinkDL = 9, BlinkD = 10, BlinkDR = 11,
+	Smile = 12, SmileTalk = 13, Happy = 14, HappyTalk = 15, Shy = 16, ShyTalk = 17,
+	Pat = 18, Surprised = 19, Flustered = 20, Talk = 21, Pout = 22, Sleepy = 23, Wink = 24,
 }
 
--- Width/height of the drawing; y = 112 is the edge she holds on to.
-local STAGE_W, STAGE_H = 124, 112
+-- Mood -> { still frame, talking frame }. Idle looks wherever the cursor is.
+local MascotMoods = {
+	Idle = { "GazeC", "Talk" },
+	Smile = { "Smile", "SmileTalk" },
+	Happy = { "Happy", "HappyTalk" },
+	Blush = { "Shy", "ShyTalk" },
+	Pat = { "Pat", "Pat" },
+	Flustered = { "Flustered", "Flustered" },
+	Surprised = { "Surprised", "Surprised" },
+	Pout = { "Pout", "Pout" },
+	Sleepy = { "Sleepy", "Sleepy" },
+	Wink = { "Wink", "Wink" },
+}
 
-local function Blob(parent, x, y, w, h, color, extra)
-	local blob = Create("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(x, y),
-		Size = UDim2.fromOffset(w, h),
-		BackgroundColor3 = color,
-		Corner = extra and extra.Radius and UDim.new(0, extra.Radius) or UDim.new(1, 0),
-		Parent = parent,
-	})
-	if extra then
-		blob.Rotation = extra.Rotation or 0
-		blob.BackgroundTransparency = extra.Transparency or 0
-		if extra.Outline then
-			Create("UIStroke", {
-				Color = MascotColors.Line,
-				Thickness = extra.Outline,
-				Transparency = extra.OutlineTransparency or 0.4,
-				Parent = blob,
-			})
-		end
-	end
-	return blob
-end
-
-local function Layer(parent)
-	return Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = parent })
-end
+-- icon, color, how many
+local MascotEmotes = {
+	Hearts = { "heart-filled", rgb(255, 99, 140), 3 },
+	Sparkles = { "sparkles", rgb(255, 211, 84), 2 },
+	Shock = { "exclamation", rgb(255, 84, 96), 1 },
+	Sweat = { "droplet-filled", rgb(120, 190, 255), 1 },
+	Sleep = { "zzz", rgb(176, 190, 255), 1 },
+}
 
 local Mascot = {}
 Mascot.__index = Mascot
 
--- headParent/handsParent: containers for the two layers. position: bottom
--- centre of the drawing (the edge), in the parents' coordinate space.
-local function BuildMascot(headParent, handsParent, position, scale, images)
-	local mascot = setmetatable({ Mood = "Idle", Hidden = false, Tweens = {} }, Mascot)
-	local c = MascotColors
+local function MascotStage(parent, position, size)
+	return Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, MASCOT_EDGE),
+		Position = position,
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		Parent = parent,
+	})
+end
 
-	local function Stage(parent)
-		local stage = Create("Frame", {
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = position,
-			Size = UDim2.fromOffset(STAGE_W, STAGE_H),
-			BackgroundTransparency = 1,
-			Parent = parent,
-		})
-		Create("UIScale", { Scale = scale or 1, Parent = stage })
-		return stage
-	end
-	mascot.Stage = Stage(headParent)
-	mascot.HandStage = Stage(handsParent)
-	-- Head: moves when ducking. Body: idle breathing / hops, inside Head.
-	mascot.Head = Layer(mascot.Stage)
-	mascot.Body = Layer(mascot.Head)
-	mascot.Hands = Layer(mascot.HandStage)
-	local body = mascot.Body
+-- parent: the layer behind the cover. front: a layer above it for emotes.
+-- position: the point on the edge she peeks over, in the layers' space.
+-- size: frame size in pixels. options.Images: per-mood images instead of the
+-- sheet ({ Idle = "rbxassetid://...", Blush = ... }).
+local function BuildMascot(parent, front, position, size, options)
+	options = options or {}
+	local mascot = setmetatable({
+		Mood = "Idle",
+		Gaze = "C",
+		Hidden = false,
+		Ready = false,
+		Size = size,
+		Tweens = {},
+		_gazeAt = 0,
+	}, Mascot)
 
-	if images and images.Idle then
-		-- Custom artwork: swap images per mood instead of drawing a face.
-		mascot.Images = images
-		mascot.Image = Create("ImageLabel", {
-			Size = UDim2.fromScale(1, 1),
-			Image = images.Idle,
-			ScaleType = Enum.ScaleType.Fit,
-			Parent = body,
-		})
-	else
-		-- Hair behind the face
-		Blob(body, 62, 54, 102, 90, c.Hair)
-		Blob(body, 18, 90, 28, 72, c.Hair, { Rotation = 8 })
-		Blob(body, 106, 90, 28, 72, c.Hair, { Rotation = -8 })
-		-- Face
-		Blob(body, 62, 85, 76, 66, c.Skin, { Radius = 30, Outline = 1.2, OutlineTransparency = 0.55 })
-		-- Fringe: a band of hair plus pointed strands over the forehead
-		Blob(body, 62, 44, 90, 28, c.Hair)
-		for _, strand in { { 30, 56, 14 }, { 42, 59, 15 }, { 55, 61, 13 }, { 69, 61, 13 }, { 82, 59, 15 }, { 94, 56, 14 } } do
-			Blob(body, strand[1], strand[2], strand[3], strand[3], c.Hair, { Radius = 3, Rotation = 45 })
-		end
-		Blob(body, 26, 84, 10, 50, c.Hair, { Rotation = 5 })
-		Blob(body, 98, 84, 10, 50, c.Hair, { Rotation = -5 })
-		-- Shine and a stray strand on top
-		Blob(body, 44, 25, 28, 5, c.HairShine, { Rotation = -16, Transparency = 0.25 })
-		Blob(body, 69, 22, 10, 4, c.HairShine, { Rotation = 12, Transparency = 0.45 })
-		Blob(body, 68, 6, 4, 16, c.Hair, { Rotation = 22 })
-		Blob(body, 73, 0, 4, 10, c.Hair, { Rotation = 70 })
-		-- Ribbon
-		Blob(body, 99, 30, 16, 10, c.Ribbon, { Rotation = -28 })
-		Blob(body, 110, 39, 16, 10, c.Ribbon, { Rotation = 38 })
-		Blob(body, 105, 35, 7, 7, c.RibbonDark)
+	mascot.Stage = MascotStage(parent, position, size)
+	mascot.Stage.Visible = false
+	mascot.FrontStage = front and MascotStage(front, position, size)
+	-- Lift: hops and ducking. Sway: the idle tilt. Tilt: shakes. Both rotate
+	-- around the edge point, so they are twice as tall as the part above it.
+	-- Squash: pats and breathing, anchored on the edge as well.
+	mascot.Lift = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = mascot.Stage })
+	local pivot = UDim2.new(1, 0, 0, size * MASCOT_EDGE * 2)
+	mascot.Sway = Create("Frame", { Size = pivot, Rotation = -1.4, BackgroundTransparency = 1, Parent = mascot.Lift })
+	mascot.Tilt = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = mascot.Sway })
+	mascot.Squash = Create("Frame", {
+		AnchorPoint = Vector2.new(0.5, MASCOT_EDGE),
+		Position = UDim2.new(0.5, 0, 0, size * MASCOT_EDGE),
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		Parent = mascot.Tilt,
+	})
+	mascot.Breath = Create("UIScale", { Parent = mascot.Squash })
+	-- Two stacked frames so expression changes can cross-fade.
+	mascot.Back = Create("ImageLabel", {
+		Size = UDim2.fromScale(1, 1),
+		ImageRectSize = Vector2.new(MASCOT_CELL, MASCOT_CELL),
+		ImageTransparency = 1,
+		Parent = mascot.Squash,
+	})
+	mascot.Image = Create("ImageLabel", {
+		Size = UDim2.fromScale(1, 1),
+		ImageRectSize = Vector2.new(MASCOT_CELL, MASCOT_CELL),
+		Parent = mascot.Squash,
+	})
 
-		-- Eyes: open (with a gaze layer that follows the cursor), closed,
-		-- happy (^ ^) and squeezed (> <)
-		mascot.EyesOpen = Layer(body)
-		mascot.Gaze = {}
-		for index, x in { 45, 79 } do
-			local side = index == 1 and -1 or 1
-			Blob(mascot.EyesOpen, x, 79, 19, 23, WHITE, { Outline = 1, OutlineTransparency = 0.35 })
-			local look = Layer(mascot.EyesOpen)
-			table.insert(mascot.Gaze, look)
-			local iris = Blob(look, x, 80.5, 14, 18, WHITE)
-			Create("UIGradient", {
-				Rotation = 90,
-				Color = ColorSequence.new({
-					ColorSequenceKeypoint.new(0, c.IrisDark),
-					ColorSequenceKeypoint.new(0.55, c.Iris),
-					ColorSequenceKeypoint.new(1, c.IrisLight),
-				}),
-				Parent = iris,
-			})
-			Blob(look, x, 81.5, 6, 8, c.IrisDark)
-			Blob(look, x - 3.5, 75, 5.5, 5.5, WHITE)
-			Blob(look, x + 3.5, 85, 2.5, 2.5, WHITE)
-			Blob(mascot.EyesOpen, x, 68.5, 23, 3.5, c.Line, { Rotation = side * 7 })
-			Blob(mascot.EyesOpen, x + side * 12, 70.5, 7, 3, c.Line, { Rotation = side * 35 })
-		end
-		mascot.EyesClosed = Layer(body)
-		mascot.EyesHappy = Layer(body)
-		mascot.EyesSqueeze = Layer(body)
-		for index, x in { 45, 79 } do
-			Blob(mascot.EyesClosed, x, 81, 20, 3.5, c.Line)
-			Blob(mascot.EyesHappy, x - 5, 81, 12, 3.5, c.Line, { Rotation = -35 })
-			Blob(mascot.EyesHappy, x + 5, 81, 12, 3.5, c.Line, { Rotation = 35 })
-			local point = index == 1 and 1 or -1
-			Blob(mascot.EyesSqueeze, x - point, 77, 13, 3.5, c.Line, { Rotation = point * 28 })
-			Blob(mascot.EyesSqueeze, x - point, 84, 13, 3.5, c.Line, { Rotation = -point * 28 })
-		end
-
-		-- Blush (cheeks plus little "///" marks)
-		mascot.Blush = Layer(body)
-		mascot.BlushParts = {}
-		for _, x in { 37, 87 } do
-			table.insert(mascot.BlushParts, { Blob(mascot.Blush, x, 93, 15, 7, c.Blush), 0.45 })
-			for offset = -3.5, 3.5, 3.5 do
-				table.insert(mascot.BlushParts, { Blob(mascot.Blush, x + offset, 92.5, 1.7, 7, c.BlushLine, { Rotation = 25 }), 0.2 })
-			end
-		end
-
-		-- Mouths
-		mascot.Mouths = {
-			Small = Layer(body),
-			Smile = Layer(body),
-			Wavy = Layer(body),
-			Open = Layer(body),
-		}
-		Blob(mascot.Mouths.Small, 62, 97, 7, 4, c.Mouth)
-		Blob(mascot.Mouths.Smile, 62, 96.5, 13, 8, c.Mouth)
-		Blob(mascot.Mouths.Smile, 62, 99, 7, 3.5, c.Tongue)
-		for step, rotation in { 25, -25, 25 } do
-			Blob(mascot.Mouths.Wavy, 55.5 + step * 3.5, 97, 6, 2, c.Line, { Rotation = rotation })
-		end
-		Blob(mascot.Mouths.Open, 62, 97, 7, 9, c.Mouth)
-
-		mascot.Sweat = Layer(body)
-		Blob(mascot.Sweat, 100, 64, 7, 10, c.Sweat, { Rotation = -15 })
-		Blob(mascot.Sweat, 99, 66, 2.5, 3.5, WHITE, { Transparency = 0.2 })
-
-		-- Hands gripping the edge (drawn in front of whatever hides her body)
-		mascot.HandParts = {}
-		for _, x in { 40, 84 } do
-			local hand = Blob(mascot.Hands, x, 110, 22, 13, c.Skin, { Outline = 1.2, OutlineTransparency = 0.3 })
-			table.insert(mascot.HandParts, hand)
-			for offset = -5, 5, 5 do
-				table.insert(mascot.HandParts, Blob(mascot.Hands, x + offset, 106.5, 1.5, 5, c.Line, { Transparency = 0.45 }))
-			end
-		end
-	end
-
-	-- Clickable area over her head
+	-- Clickable area over the part of her that shows above the edge.
 	mascot.Hit = Create("TextButton", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromOffset(62, 0),
-		Size = UDim2.fromOffset(100, 112),
+		Position = UDim2.fromScale(0.2, 0.04),
+		Size = UDim2.fromScale(0.6, MASCOT_EDGE - 0.04),
 		BackgroundTransparency = 1,
 		ZIndex = 5,
 		Parent = mascot.Stage,
 	})
 
-	mascot:SetMood("Idle", true)
+	local function Show(image)
+		if not image or not mascot.Stage.Parent then
+			return
+		end
+		mascot.Image.Image = image
+		mascot.Back.Image = image
+		mascot.Ready = true
+		mascot.Stage.Visible = true
+		mascot:_Refresh(false)
+		if not mascot.Hidden then
+			-- First appearance: she pops up from behind the edge.
+			mascot.Lift.Position = UDim2.fromOffset(0, size * 0.8)
+			mascot:Peek()
+		end
+	end
+	if type(options.Images) == "table" and options.Images.Idle then
+		mascot.Custom = options.Images
+		mascot.Image.ImageRectSize = Vector2.zero
+		mascot.Image.ScaleType = Enum.ScaleType.Fit
+		Show(options.Images.Idle)
+	else
+		Assets.WithMascot(Show)
+	end
 	return mascot
 end
 
-local MascotMoods = {
-	-- eyes, mouth, blush, sweat
-	Idle = { "Open", "Small", false, false },
-	Happy = { "Happy", "Smile", 0.5, false },
-	Blush = { "Open", "Wavy", 1, false },
-	Flustered = { "Squeeze", "Wavy", 1, true },
-	Surprised = { "Open", "Open", false, false },
-}
+function Mascot:_Frame(name, fade)
+	if self.Custom then
+		self.Image.Image = self.Custom[self.Mood] or self.Custom.Idle
+		return
+	end
+	local index = MascotFrames[name]
+	if not index or self.Current == name then
+		return
+	end
+	self.Current = name
+	self._fade = (self._fade or 0) + 1
+	local offset = Vector2.new(index % MASCOT_COLUMNS * MASCOT_CELL, math.floor(index / MASCOT_COLUMNS) * MASCOT_CELL)
+	if fade and Library.Animations and self.Ready and self.Stage.Visible then
+		local token = self._fade
+		self.Back.ImageRectOffset = self.Image.ImageRectOffset
+		self.Back.ImageTransparency = 0
+		self.Image.ImageRectOffset = offset
+		self.Image.ImageTransparency = 1
+		Tween(self.Image, { ImageTransparency = 0 }, 0.14)
+		task.delay(0.16, function()
+			if self._fade == token then
+				self.Back.ImageTransparency = 1
+			end
+		end)
+	else
+		self.Image.ImageRectOffset = offset
+		self.Image.ImageTransparency = 0
+		self.Back.ImageTransparency = 1
+	end
+end
 
+-- Picks the frame for her mood, gaze, blink and mouth.
+function Mascot:_Refresh(fade)
+	local name
+	if self.Mood == "Idle" then
+		if self.MouthOpen then
+			name = "Talk"
+		elseif self.Blinking then
+			name = "Blink" .. (self.Talking and "C" or self.Gaze)
+		else
+			name = "Gaze" .. (self.Talking and "C" or self.Gaze)
+		end
+	else
+		local spec = MascotMoods[self.Mood]
+		name = self.MouthOpen and spec[2] or spec[1]
+	end
+	self:_Frame(name, fade)
+end
+
+-- Moods: Idle, Smile, Happy, Blush, Pat, Flustered, Surprised, Pout, Sleepy, Wink.
 function Mascot:SetMood(mood, instant)
-	local spec = MascotMoods[mood]
-	if not spec then
+	if not MascotMoods[mood] then
 		return
 	end
 	self.Mood = mood
-	if self.Images then
-		self.Image.Image = self.Images[mood] or self.Images.Idle
-		return
-	end
-	self.EyesOpen.Visible = spec[1] == "Open"
-	self.EyesClosed.Visible = false
-	self.EyesHappy.Visible = spec[1] == "Happy"
-	self.EyesSqueeze.Visible = spec[1] == "Squeeze"
-	for name, layer in self.Mouths do
-		layer.Visible = name == spec[2]
-	end
-	self.Sweat.Visible = spec[4]
-	local animate = Animate(instant)
-	for _, part in self.BlushParts do
-		local strength = spec[3] or 0
-		animate(part[1], { BackgroundTransparency = 1 - (1 - part[2]) * strength }, 0.3)
-	end
+	self:_Refresh(not instant)
 end
 
 function Mascot:Blink()
-	if self.Images or self.Hidden or not self.EyesOpen.Visible then
+	if self.Hidden or self.Mood ~= "Idle" or self.MouthOpen or self.Blinking then
 		return
 	end
-	self.EyesOpen.Visible = false
-	self.EyesClosed.Visible = true
-	task.delay(0.11, function()
-		if self.Mood and MascotMoods[self.Mood][1] == "Open" then
-			self.EyesClosed.Visible = false
-			self.EyesOpen.Visible = true
-		end
+	self.Blinking = true
+	self:_Refresh(false)
+	task.delay(0.12, function()
+		self.Blinking = false
+		self:_Refresh(false)
 	end)
 end
 
--- Points her pupils at a screen position (pupils move at most ~2.5px).
+-- While talking she faces you and her mouth follows SetMouth.
+function Mascot:SetTalking(talking)
+	self.Talking = talking == true
+	if not self.Talking then
+		self.MouthOpen = false
+	end
+	self:_Refresh(true)
+end
+
+function Mascot:SetMouth(open)
+	if self.MouthOpen ~= open then
+		self.MouthOpen = open
+		self:_Refresh(false)
+	end
+end
+
+-- Turns her head toward a screen position (left/centre/right, level or down).
 function Mascot:Look(target)
-	if not self.Gaze then
+	if not self.Ready or self.Custom then
 		return
 	end
 	local stage = self.Stage
-	local scale = stage.AbsoluteSize.X / STAGE_W
-	local eyes = stage.AbsolutePosition + Vector2.new(62, 80) * scale
-	local delta = target - eyes
-	local distance = delta.Magnitude
-	local offset = distance > 1 and delta / distance * math.min(distance / 90, 1) or Vector2.zero
-	for _, look in self.Gaze do
-		look.Position = UDim2.fromOffset(offset.X * 2.6, offset.Y * 2)
+	local unit = stage.AbsoluteSize.X / 160
+	local delta = target - (stage.AbsolutePosition + stage.AbsoluteSize * Vector2.new(0.5, 0.4))
+	local side = delta.X < -75 * unit and "L" or delta.X > 75 * unit and "R" or ""
+	local gaze = (delta.Y > 70 * unit and "D" or "") .. side
+	gaze = gaze == "" and "C" or gaze
+	self._lookTarget = target
+	if gaze == self.Gaze then
+		return
+	end
+	local wait = 0.2 - (os.clock() - self._gazeAt)
+	if wait > 0 then
+		-- Turned a moment ago: look again once the turn has finished.
+		if not self._lookQueued then
+			self._lookQueued = true
+			task.delay(wait, function()
+				self._lookQueued = false
+				self:Look(self._lookTarget)
+			end)
+		end
+		return
+	end
+	self.Gaze = gaze
+	self._gazeAt = os.clock()
+	if self.Mood == "Idle" and not self.Talking then
+		self:_Refresh(true)
 	end
 end
 
@@ -2038,44 +2230,108 @@ function Mascot:SetPaused(paused)
 	end
 end
 
+-- Breathing and a slow sway, played by the engine.
 function Mascot:StartIdle()
-	self:_Loop(self.Body, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-		Position = UDim2.fromOffset(0, 1.5),
+	self:_Loop(self.Breath, TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Scale = 1.014,
+	})
+	self:_Loop(self.Sway, TweenInfo.new(3.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Rotation = 1.4,
 	})
 end
 
-function Mascot:Hop()
-	Tween(self.Head, { Position = UDim2.fromOffset(0, -5) }, 0.12, Enum.EasingStyle.Quad)
-	task.delay(Library.Animations and 0.12 or 0, function()
+function Mascot:Hop(height)
+	if self.Hidden then
+		return
+	end
+	local lift = (height or 10) * self.Size / 160
+	Tween(self.Lift, { Position = UDim2.fromOffset(0, -lift) }, 0.13, Enum.EasingStyle.Quad)
+	task.delay(Library.Animations and 0.13 or 0, function()
 		if not self.Hidden then
-			Tween(self.Head, { Position = UDim2.new() }, 0.25, Enum.EasingStyle.Bounce)
+			Tween(self.Lift, { Position = UDim2.new() }, 0.34, Enum.EasingStyle.Bounce)
 		end
 	end)
 end
 
-local function FadeHands(mascot, visible)
-	for _, part in mascot.HandParts or {} do
-		local stroke = part:FindFirstChildOfClass("UIStroke")
-		local base = part.Size.X.Offset < 3 and 0.45 or 0
-		Tween(part, { BackgroundTransparency = visible and base or 1 }, 0.2)
-		if stroke then
-			Tween(stroke, { Transparency = visible and 0.3 or 1 }, 0.2)
-		end
+-- A quick squash, like being patted on the head.
+function Mascot:Squish()
+	local size = self.Size
+	Tween(self.Squash, { Size = UDim2.fromOffset(size * 1.035, size * 0.95) }, 0.1, Enum.EasingStyle.Quad)
+	task.delay(Library.Animations and 0.1 or 0, function()
+		Tween(self.Squash, { Size = UDim2.fromOffset(size, size) }, 0.3, Enum.EasingStyle.Back)
+	end)
+end
+
+-- A flustered little head shake.
+function Mascot:Shake()
+	if not Library.Animations then
+		return
 	end
-	Tween(mascot.Hands, { Position = UDim2.fromOffset(0, visible and 0 or 6) }, 0.25)
+	self.Tilt.Rotation = -4
+	TweenService:Create(self.Tilt, TweenInfo.new(0.07, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 3, true), {
+		Rotation = 4,
+	}):Play()
+	task.delay(0.56, function()
+		Tween(self.Tilt, { Rotation = 0 }, 0.12)
+	end)
 end
 
 -- Ducks below the edge; Peek brings her back.
 function Mascot:Hide()
 	self.Hidden = true
-	FadeHands(self, false)
-	Tween(self.Head, { Position = UDim2.fromOffset(0, 86) }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+	Tween(self.Lift, { Position = UDim2.fromOffset(0, self.Size * 0.8) }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 end
 
 function Mascot:Peek()
 	self.Hidden = false
-	FadeHands(self, true)
-	Tween(self.Head, { Position = UDim2.new() }, 0.55, Enum.EasingStyle.Back)
+	Tween(self.Lift, { Position = UDim2.new() }, 0.6, Enum.EasingStyle.Back)
+end
+
+-- Floating icons around her head: Hearts, Sparkles, Shock, Sweat or Sleep.
+function Mascot:Emote(kind)
+	local spec = MascotEmotes[kind]
+	local offset = spec and Assets.IconOffset(spec[1])
+	if not offset or not self.FrontStage or self.Hidden or not self.Ready or not Library.Animations then
+		return
+	end
+	local size = self.Size
+	local iconSize = math.floor(size * (kind == "Hearts" and 0.1 or 0.12) + 0.5)
+	for index = 1, spec[3] do
+		local x, y
+		if kind == "Hearts" then
+			x, y = 0.28 + (index - 1) * 0.22 + (math.random() - 0.5) * 0.08, 0.3 + math.random() * 0.08
+		elseif kind == "Sparkles" then
+			x, y = index == 1 and 0.2 or 0.8, index == 1 and 0.14 or 0.24
+		elseif kind == "Sweat" then
+			x, y = 0.74, 0.26
+		else
+			x, y = 0.76, 0.1
+		end
+		local icon = Create("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(x, y),
+			Size = UDim2.fromOffset(iconSize, iconSize),
+			Rotation = kind == "Hearts" and math.random(-18, 18) or 0,
+			Image = Assets.IconSheet.Image,
+			ImageRectOffset = offset,
+			ImageRectSize = Assets.IconSheet.Size,
+			ImageColor3 = spec[2],
+			ImageTransparency = 1,
+			Parent = self.FrontStage,
+		})
+		local pop = Create("UIScale", { Scale = 0.3, Parent = icon })
+		task.delay((index - 1) * 0.13, function()
+			icon.ImageTransparency = 0
+			Tween(pop, { Scale = 1 }, 0.3, Enum.EasingStyle.Back)
+			local rise = kind == "Sweat" and -0.07 or kind == "Shock" and 0.02 or 0.22
+			local drift = kind == "Sleep" and 0.1 or (math.random() - 0.5) * 0.08
+			Tween(icon, { Position = UDim2.fromScale(x + drift, y - rise) }, 1.1, Enum.EasingStyle.Sine)
+			task.wait(0.7)
+			Tween(icon, { ImageTransparency = 1 }, 0.4)
+			task.wait(0.42)
+			icon:Destroy()
+		end)
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -2097,38 +2353,38 @@ local BUBBLE_TEXT = rgb(28, 30, 36)
 
 local MascotLines = {
 	Greeting = {
-		"Y-you're back! N-not that I was waiting...",
-		"Oh. It's you again... h-hi.",
-		"W-welcome back! I kept the farm warm.",
-		"You took forever... I mean, hello!",
+		"Oh! You're back! Hi hi~",
+		"Welcome back! I missed you... a little.",
+		"Hello again! Ready when you are.",
+		"Ah, there you are! Let's do our best today!",
 	},
 	Click = {
-		"H-hey! Don't poke me!",
-		"It's not like I enjoy it...",
-		"S-stop staring at me...",
-		"I-I'm not blushing! It's the lighting!",
-		"B-baka! I'm busy farming!",
-		"...again? Fine. Just once more.",
-		"Hmph. Did you need something?",
+		"Eh?! W-what was that for?",
+		"Hehe, that tickles!",
+		"D-don't poke me so suddenly...",
+		"You're making me blush...",
+		"Mm? Did you need something?",
+		"Ehehe... hi there.",
 	},
 	Pat = {
-		"...you can hold it. Just this once.",
-		"Mmh... okay, that's nice.",
-		"D-don't tell anyone about this.",
+		"Ehehe~ more pats, please.",
+		"Mmm... that's nice.",
+		"Just a little longer...",
 	},
-	Spam = { "S-stop it!", "W-what is wrong with you?!" },
-	Hide = { "That's it, I'm hiding!", "I'm leaving! Hmph!" },
-	Return = { "...is it safe now?", "Okay... I'm back. No poking." },
+	Spam = { "H-hey! Stop it!", "Th-that's too much poking!", "Waaah, I'm getting dizzy!" },
+	Hide = { "Mou~ I'm hiding now!", "Hmph! I'm leaving!" },
+	Return = { "...are you done poking?", "Okay, I'm back. Be gentle!" },
 	Idle = {
-		"*yawn*... still farming?",
-		"You've been at this a while...",
-		"I-I'll keep watch. Not for you.",
-		"Don't forget to save your config!",
+		"Still here? Me too!",
+		"Don't forget to save your config~",
+		"It's so quiet... *yawn*",
+		"I'll keep you company!",
 	},
+	Wake = { "Ah! I wasn't sleeping! Really!", "Hm? Oh! You're back!" },
 	React = {
-		"%s? Good choice.",
-		"Ooh, %s... fine, I'll watch.",
-		"%s on! Don't overdo it.",
+		"%s! Good luck~",
+		"Ooh, %s! Nice one!",
+		"%s on! Let's go!",
 	},
 }
 
@@ -2447,18 +2703,20 @@ function Library:CreateWindow(options)
 	window._strip = strip
 
 	----------------------------------------------------------------------------
-	-- Mascot (ZIndex 2, drawn behind the body) and her hands (ZIndex 5)
+	-- Mascot (ZIndex 2, drawn behind the body) and her emotes (ZIndex 5)
 	----------------------------------------------------------------------------
 
 	local mascotLayer = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 2, Parent = main })
-	local handsLayer = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 5, Parent = main })
-	window._mascotLayers = { mascotLayer, handsLayer }
+	local emoteLayer = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 5, Parent = main })
+	window._mascotLayers = { mascotLayer, emoteLayer }
+	window._mascotSize = tonumber(mascotOptions.Size) or 150
+	window._mascotOptions = mascotOptions
 	if options.Mascot ~= false then
-		window.Mascot = BuildMascot(mascotLayer, handsLayer, UDim2.new(1, -MASCOT_RIGHT, 0, HEADER_H), 1.12, mascotOptions.Images)
+		window.Mascot = BuildMascot(mascotLayer, emoteLayer, UDim2.new(1, -MASCOT_RIGHT, 0, HEADER_H), window._mascotSize, mascotOptions)
 		window.Mascot:StartIdle()
 		window.Mascot:SetPaused(true)
 		mascotLayer.Visible = self.MascotEnabled
-		handsLayer.Visible = self.MascotEnabled
+		emoteLayer.Visible = self.MascotEnabled
 	end
 	for kind, list in mascotOptions.Lines or {} do
 		if type(list) == "table" and #list > 0 then
@@ -2854,7 +3112,11 @@ end
 -- Types `text` into the speech bubble. Optional `mood` is held while talking.
 function Window:Say(text, duration, mood)
 	local bubble = self._bubble
+	local mascot = self.Mascot
 	if not bubble or Library.Unloaded or not Library.MascotSpeech or not Library.MascotEnabled then
+		return
+	end
+	if mascot and not mascot.Ready then
 		return
 	end
 	self._sayToken += 1
@@ -2867,8 +3129,11 @@ function Window:Say(text, duration, mood)
 	Tween(bubble.Frame, { BackgroundTransparency = 0 }, 0.18)
 	Tween(bubble.Tail, { BackgroundTransparency = 0 }, 0.18)
 	Tween(bubble.Text, { TextTransparency = 0 }, 0.18)
-	if mood and self.Mascot then
-		self.Mascot:SetMood(mood)
+	if mascot then
+		if mood then
+			mascot:SetMood(mood)
+		end
+		mascot:SetTalking(true)
 	end
 	task.spawn(function()
 		local count = utf8.len(text) or #text
@@ -2878,9 +3143,16 @@ function Window:Say(text, duration, mood)
 			end
 			bubble.Text.MaxVisibleGraphemes = index
 			local char = string.sub(text, index, index)
+			if mascot then
+				-- Her mouth opens and closes every few letters while the line types out.
+				mascot:SetMouth(char ~= " " and char ~= "." and math.floor(index / 3) % 2 == 0)
+			end
 			task.wait((char == "." or char == "!" or char == "?") and 0.08 or char == "," and 0.06 or 0.026)
 		end
 		bubble.Text.MaxVisibleGraphemes = -1
+		if mascot then
+			mascot:SetTalking(false)
+		end
 		task.wait(duration or (1.8 + count * 0.03))
 		if token ~= self._sayToken or Library.Unloaded then
 			return
@@ -2889,8 +3161,8 @@ function Window:Say(text, duration, mood)
 		Tween(bubble.Tail, { BackgroundTransparency = 1 }, 0.25)
 		Tween(bubble.Text, { TextTransparency = 1 }, 0.25)
 		Tween(bubble.Scale, { Scale = 0.9 }, 0.25)
-		if mood and self.Mascot and not self.Mascot.Hidden then
-			self.Mascot:SetMood("Idle")
+		if mood and mascot and not mascot.Hidden then
+			mascot:SetMood("Idle")
 		end
 	end)
 end
@@ -2900,16 +3172,33 @@ function Window:_MascotBrain()
 	local mascot = self.Mascot
 	local clicks, firstClick = 0, 0
 	local holding, patted = 0, false
-	local lastReaction = 0
+	local lastReaction, lastActive = 0, os.clock()
 
+	local function Wake()
+		lastActive = os.clock()
+		if mascot.Mood == "Sleepy" and not window._sulking then
+			mascot:SetMood("Surprised")
+			mascot:Emote("Shock")
+			mascot:Hop(6)
+			window:Say(Pick(MascotLines.Wake), nil, "Blush")
+		end
+	end
+
+	-- Hold the mouse on her to pat her head.
 	mascot.Hit.MouseButton1Down:Connect(function()
 		holding += 1
 		patted = false
 		local token = holding
-		task.delay(0.9, function()
-			if holding == token and not mascot.Hidden then
-				patted = true
-				window:Say(Pick(MascotLines.Pat), nil, "Happy")
+		task.delay(0.6, function()
+			if holding ~= token or mascot.Hidden or window._sulking then
+				return
+			end
+			patted = true
+			window:Say(Pick(MascotLines.Pat), nil, "Pat")
+			mascot:Emote("Hearts")
+			while holding == token and not Library.Unloaded do
+				mascot:Squish()
+				task.wait(0.42)
 			end
 		end)
 	end)
@@ -2918,7 +3207,13 @@ function Window:_MascotBrain()
 	end
 	mascot.Hit.MouseButton1Up:Connect(Release)
 	mascot.Hit.MouseLeave:Connect(Release)
+
 	mascot.Hit.Activated:Connect(function()
+		local wasSleeping = mascot.Mood == "Sleepy"
+		Wake()
+		if wasSleeping then
+			return
+		end
 		if patted or mascot.Hidden or window._sulking then
 			patted = false
 			return
@@ -2927,57 +3222,91 @@ function Window:_MascotBrain()
 			clicks, firstClick = 0, os.clock()
 		end
 		clicks += 1
-		mascot:Hop()
 		if clicks >= 6 then
-			-- Poked too often: she hides for a few seconds.
+			-- Poked too often: she pouts and hides for a few seconds.
 			clicks = 0
 			window._sulking = true
-			window:Say(Pick(MascotLines.Hide), 1.2, "Flustered")
+			mascot:Shake()
+			window:Say(Pick(MascotLines.Hide), 1.2, "Pout")
 			task.delay(1.6, function()
 				mascot:Hide()
 				task.wait(4.5)
 				if Library.Unloaded then
 					return
 				end
+				mascot:SetMood("Blush", true)
 				mascot:Peek()
 				window._sulking = false
 				window:Say(Pick(MascotLines.Return), nil, "Blush")
 			end)
 		elseif clicks >= 4 then
+			mascot:Shake()
+			mascot:Emote("Sweat")
 			window:Say(Pick(MascotLines.Spam), nil, "Flustered")
 		else
-			window:Say(Pick(MascotLines.Click), nil, math.random() < 0.5 and "Blush" or "Happy")
+			mascot:Hop()
+			local roll = math.random()
+			if roll < 0.45 then
+				mascot:Emote("Hearts")
+				window:Say(Pick(MascotLines.Click), nil, "Blush")
+			elseif roll < 0.75 then
+				mascot:Emote("Hearts")
+				window:Say(Pick(MascotLines.Click), nil, "Happy")
+			else
+				mascot:Emote("Shock")
+				window:Say(Pick(MascotLines.Click), nil, "Surprised")
+			end
 		end
 	end)
 
 	-- Reacts to toggles being switched on (rarely, so it stays charming).
 	Library._mascotReact = function(element)
-		if not Library.MascotReactions or Library._loading or os.clock() - lastReaction < 25 or math.random() > 0.3 then
+		lastActive = os.clock()
+		if not Library.MascotReactions or Library._loading or window._sulking or os.clock() - lastReaction < 25 or math.random() > 0.3 then
 			return
 		end
 		lastReaction = os.clock()
-		window:Say(string.format(Pick(MascotLines.React), element.Title), nil, "Happy")
+		mascot:Emote("Sparkles")
+		window:Say(string.format(Pick(MascotLines.React), element.Title), nil, math.random() < 0.5 and "Wink" or "Smile")
 	end
 	Library._pointerHook = function(pointer)
-		if window.Visible and Library.MascotFollow and Library.MascotEnabled then
-			mascot:Look(pointer)
+		if window.Visible and Library.MascotEnabled then
+			if mascot.Mood == "Sleepy" or os.clock() - lastActive > 1 then
+				Wake()
+			end
+			if Library.MascotFollow then
+				mascot:Look(pointer)
+			end
 		end
 	end
 
-	-- Blinks every few seconds; says an idle line now and then.
+	-- Blinks every few seconds, says an idle line now and then and dozes off
+	-- when nobody has moved the mouse for a while.
 	task.spawn(function()
 		local nextIdle = os.clock() + math.random(45, 80)
+		local nextSnore = 0
 		while not Library.Unloaded do
 			task.wait(2.2 + math.random() * 3.5)
-			if window.Visible and Library.MascotEnabled then
-				mascot:Blink()
-				if math.random() < 0.2 then
-					task.wait(0.2)
+			if window.Visible and Library.MascotEnabled and mascot.Ready and not window._sulking then
+				if mascot.Mood == "Sleepy" then
+					if os.clock() > nextSnore then
+						nextSnore = os.clock() + 4
+						mascot:Emote("Sleep")
+					end
+				elseif os.clock() - lastActive > 50 and mascot.Mood == "Idle" and not mascot.Talking then
+					mascot:SetMood("Sleepy")
+					mascot:Emote("Sleep")
+					nextSnore = os.clock() + 4
+				else
 					mascot:Blink()
-				end
-				if os.clock() > nextIdle and not window._sulking then
-					nextIdle = os.clock() + math.random(60, 120)
-					window:Say(Pick(MascotLines.Idle))
+					if math.random() < 0.2 then
+						task.wait(0.22)
+						mascot:Blink()
+					end
+					if os.clock() > nextIdle then
+						nextIdle = os.clock() + math.random(60, 120)
+						window:Say(Pick(MascotLines.Idle), nil, "Smile")
+					end
 				end
 			end
 		end
@@ -2991,6 +3320,9 @@ function Window:SetMascotVisible(visible)
 	end
 	if not Library.MascotEnabled and self._bubble then
 		self._sayToken += 1
+		if self.Mascot then
+			self.Mascot:SetTalking(false)
+		end
 		self._bubble.Frame.BackgroundTransparency = 1
 		self._bubble.Tail.BackgroundTransparency = 1
 		self._bubble.Text.TextTransparency = 1
@@ -3010,7 +3342,8 @@ function Window:_Shown()
 		mascot:Hop()
 		task.delay(0.35, function()
 			if self.Visible then
-				self:Say(Pick(MascotLines.Greeting), nil, "Blush")
+				mascot:Emote("Sparkles")
+				self:Say(Pick(MascotLines.Greeting), nil, math.random() < 0.5 and "Wink" or "Smile")
 			end
 		end)
 	end
@@ -3114,18 +3447,13 @@ function Window:_Loading(options)
 	local peeker
 	if self.Mascot and Library.MascotEnabled then
 		local layer = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 29, Parent = ScreenGui })
-		local hands = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 31, Parent = ScreenGui })
-		peeker = BuildMascot(layer, hands, UDim2.new(0.5, 96 * scaleValue, 0.5, -75 * scaleValue), scaleValue * 0.75)
-		peeker.Layers = { layer, hands }
-		peeker.Head.Position = UDim2.fromOffset(0, 86)
-		for _, part in peeker.HandParts or {} do
-			part.BackgroundTransparency = 1
-			local stroke = part:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				stroke.Transparency = 1
-			end
-		end
+		local front = Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 31, Parent = ScreenGui })
+		local size = math.floor(self._mascotSize * 0.8 * scaleValue + 0.5)
+		peeker = BuildMascot(layer, front, UDim2.new(0.5, 96 * scaleValue, 0.5, -75 * scaleValue), size, self._mascotOptions)
+		peeker.Layers = { layer, front }
+		peeker.Lift.Position = UDim2.fromOffset(0, size * 0.8)
 		peeker.Hidden = true
+		peeker:StartIdle()
 	end
 
 	Tween(card, { GroupTransparency = 0 }, 0.6)
@@ -3134,6 +3462,8 @@ function Window:_Loading(options)
 		task.delay(Library.Animations and 0.6 or 0, function()
 			peeker:SetMood("Surprised")
 			peeker:Peek()
+			task.wait(0.5)
+			peeker:Emote("Shock")
 		end)
 	end
 
@@ -3148,6 +3478,8 @@ function Window:_Loading(options)
 			status.Text = steps[math.min(#steps, math.floor(alpha * (#steps - 1)) + 1)] .. (alpha < 1 and "..." or "")
 			if peeker and alpha > 0.55 and peeker.Mood == "Surprised" then
 				peeker:SetMood("Idle")
+				peeker.Gaze = "D"
+				peeker:_Refresh(true)
 			end
 			if alpha >= 1 then
 				break
@@ -3156,6 +3488,7 @@ function Window:_Loading(options)
 		end
 		if peeker then
 			peeker:SetMood("Happy")
+			peeker:Emote("Sparkles")
 		end
 		task.wait(0.6)
 		if peeker then
@@ -6741,7 +7074,8 @@ function Window:_BuildSettings(options)
 		Callback = function(value)
 			Library.MascotFollow = value
 			if not value and window.Mascot then
-				window.Mascot:Look(window.Mascot.Stage.AbsolutePosition + Vector2.new(62, 300))
+				window.Mascot.Gaze = "C"
+				window.Mascot:_Refresh(true)
 			end
 			Library:_SaveSettings()
 		end,
@@ -6758,10 +7092,15 @@ function Window:_BuildSettings(options)
 	buddy:AddButton({
 		Title = "Say Something",
 		Callback = function()
+			if window.Mascot then
+				window.Mascot:Hop()
+				window.Mascot:Emote("Hearts")
+			end
 			window:Say(Pick(MascotLines.Click), nil, "Blush")
 		end,
 	})
-	buddy:AddLabel("Click her to make her blush. Hold to pat. Don't poke too much.")
+	buddy:AddLabel("Click her to make her blush. Hold to pat her head.", { Style = "Plain" })
+	buddy:AddLabel("Leave her alone for a while and she dozes off.", { Style = "Plain" })
 
 	local about = interface:AddSection({ Title = "About", Side = 3, Icon = "info", Color = rgb(140, 100, 240) })
 	local executor = "Unknown"
@@ -6774,12 +7113,17 @@ function Window:_BuildSettings(options)
 	about:AddParagraph({
 		Title = "MyUI v" .. Library.Version,
 		Content = string.format(
-			"Executor: %s\nFile system: %s\nPlace ID: %s\nConfig folder: %s",
+			"Executor: %s\nFile system: %s\nIcons: %s\nPlace ID: %s\nConfig folder: %s",
 			executor,
 			HasFS and "available" or "session only",
+			Assets.IconSheet and "Lucide sheet" or "drawn fallback",
 			tostring(game.PlaceId),
 			Library.Folder
 		),
+	})
+	about:AddParagraph({
+		Title = "Credits",
+		Content = "Hiyori Momose (c) Live2D Inc., Free Material License.\nIcons: Lucide and Tabler, via Iconify.",
 	})
 
 	self.SettingsTab = tab
