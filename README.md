@@ -12,6 +12,8 @@ The raw URL must point at a branch that contains `MyUI.lua`. Once this is merged
 
 See [`Example.lua`](Example.lua) for a script that recreates the reference layout and uses every element.
 
+> **Want the other look?** [`MyUI2.lua`](MyUI2.lua) is a second library with a blue header band, pill filters, three columns of cards, light/dark themes and a peeking mascot who blushes when you click her. See [`MyUI2.md`](MyUI2.md) and [`Example2.lua`](Example2.lua).
+
 ## Features
 
 - **Tabs → sub-tabs → sections.** Sub-tabs filter sections, and an automatic **All** sub-tab shows everything. Sections sit in two independently scrolling columns and collapse when you click their header.
